@@ -1,0 +1,6 @@
+node_modules/
+uploads/
+
+# Client-specific ignores
+client/node_modules/
+client/build/
