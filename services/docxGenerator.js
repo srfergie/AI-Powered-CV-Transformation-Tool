@@ -51,7 +51,7 @@ function createExperienceParagraphs(exp) {
             const textContent = isBullet ? trimmedLine.substring(1).trim() : trimmedLine;
 
             return new Paragraph({
-                children: [new TextRun({ text: textContent, font: FONT_FAMILY, size: 32, color: "FFFFFF" })],
+                children: [new TextRun({ text: textContent, font: FONT_FAMILY, size: 32, color: "000000" })],
                 alignment: AlignmentType.JUSTIFIED,
                 bullet: isBullet ? { level: 0 } : undefined,
                 spacing: { after: 80 }
@@ -61,10 +61,10 @@ function createExperienceParagraphs(exp) {
     return [
         new Paragraph({
             children: [
-                new TextRun({ text: `${exp.dates}, `, font: FONT_FAMILY, size: 32, bold: true, color: "FFFFFF" }),
-                new TextRun({ text: `${exp.role} | `, font: FONT_FAMILY, size: 32, bold: true, color: "FFFFFF" }),
-                new TextRun({ text: `${exp.client} | `, font: FONT_FAMILY, size: 32, bold: true, italics: true, color: "FFFFFF" }),
-                new TextRun({ text: exp.location, font: FONT_FAMILY, size: 32, color: "FFFFFF" }),
+                new TextRun({ text: `${exp.dates}, `, font: FONT_FAMILY, size: 32, bold: true, color: "000000" }),
+                new TextRun({ text: `${exp.role} | `, font: FONT_FAMILY, size: 32, bold: true, color: "000000" }),
+                new TextRun({ text: `${exp.client} | `, font: FONT_FAMILY, size: 32, bold: true, italics: true, color: "000000" }),
+                new TextRun({ text: exp.location, font: FONT_FAMILY, size: 32, color: "000000" }),
             ],
             spacing: { after: 120 }
         }),
@@ -105,7 +105,7 @@ async function generateIodParcDocx(data) {
     // --- Profile Section ---
     if (data.profile) {
         const profileParas = (data.profile || "").split('\n').filter(p => p.trim() !== "").map(p => new Paragraph({
-            children: [new TextRun({ text: p, font: FONT_FAMILY, size: 32, color: "FFFFFF" })],
+            children: [new TextRun({ text: p, font: FONT_FAMILY, size: 32, color: "000000" })],
             alignment: AlignmentType.JUSTIFIED,
             spacing: { after: 120 }
         }));
@@ -116,11 +116,11 @@ async function generateIodParcDocx(data) {
     const languageString = (data.languages || []).map(l => `${l.language} (${l.proficiency})`).join(', ');
     const nationalityParas = [
         new Paragraph({
-            children: [new TextRun({ text: data.nationality || 'Not specified', font: FONT_FAMILY, size: 32, color: "FFFFFF" })],
+            children: [new TextRun({ text: data.nationality || 'Not specified', font: FONT_FAMILY, size: 32, color: "000000" })],
             spacing: { after: 120 }
         }),
         new Paragraph({
-            children: [new TextRun({ text: languageString || 'Not specified', font: FONT_FAMILY, size: 32, color: "FFFFFF" })],
+            children: [new TextRun({ text: languageString || 'Not specified', font: FONT_FAMILY, size: 32, color: "000000" })],
             spacing: { after: 120 }
         })
     ];
@@ -130,8 +130,8 @@ async function generateIodParcDocx(data) {
     const qualContent = (data.qualifications || []).map(q =>
         new Paragraph({
             children: [
-                new TextRun({ text: `${q.year}, ${q.degree}, ${q.institution}`, font: FONT_FAMILY, size: 32, bold: true, color: "FFFFFF" }),
-                new TextRun({ text: `\n${q.details || ''}`, font: FONT_FAMILY, size: 32, italics: true, color: "FFFFFF" }),
+                new TextRun({ text: `${q.year}, ${q.degree}, ${q.institution}`, font: FONT_FAMILY, size: 32, bold: true, color: "000000" }),
+                new TextRun({ text: `\n${q.details || ''}`, font: FONT_FAMILY, size: 32, italics: true, color: "000000" }),
             ],
             spacing: { after: 120 }
         })
@@ -139,7 +139,7 @@ async function generateIodParcDocx(data) {
 
     if (qualContent.length === 0) {
         qualContent.push(new Paragraph({
-            children: [new TextRun({ text: 'No qualifications found', font: FONT_FAMILY, size: 32, color: "FFFFFF" })]
+            children: [new TextRun({ text: 'No qualifications found', font: FONT_FAMILY, size: 32, color: "000000" })]
         }));
     }
 
@@ -152,7 +152,7 @@ async function generateIodParcDocx(data) {
 
     // --- Country work experience ---
     const countryExpPara = new Paragraph({
-        children: [new TextRun({ text: (data.countryWorkExperience || []).join(', ') || 'Not specified', font: FONT_FAMILY, size: 32, color: "FFFFFF" })],
+        children: [new TextRun({ text: (data.countryWorkExperience || []).join(', ') || 'Not specified', font: FONT_FAMILY, size: 32, color: "000000" })],
         spacing: { after: 120 }
     });
     allRows.push(new TableRow({ children: [createHeaderCell("Country work experience"), createContentCell([countryExpPara])] }));
@@ -185,7 +185,7 @@ async function generateIodParcDocx(data) {
                 createHeaderCell("Experience"),
                 createContentCell([
                     new Paragraph({
-                        children: [new TextRun({ text: 'No experience entries found', font: FONT_FAMILY, size: 32, color: "FFFFFF" })]
+                        children: [new TextRun({ text: 'No experience entries found', font: FONT_FAMILY, size: 32, color: "000000" })]
                     })
                 ])
             ],
@@ -195,14 +195,14 @@ async function generateIodParcDocx(data) {
     // --- Publications ---
     const pubContent = (data.publications || []).map(p =>
         new Paragraph({
-            children: [new TextRun({ text: p.citation || 'Citation not available', font: FONT_FAMILY, size: 32, color: "FFFFFF" })],
+            children: [new TextRun({ text: p.citation || 'Citation not available', font: FONT_FAMILY, size: 32, color: "000000" })],
             spacing: { after: 120 }
         })
     );
 
     if (pubContent.length === 0) {
         pubContent.push(new Paragraph({
-            children: [new TextRun({ text: 'No publications found', font: FONT_FAMILY, size: 32, color: "FFFFFF" })]
+            children: [new TextRun({ text: 'No publications found', font: FONT_FAMILY, size: 32, color: "000000" })]
         }));
     }
 
@@ -238,7 +238,7 @@ async function generateIodParcDocx(data) {
             paragraphStyles: [{
                 id: "Normal",
                 name: "Normal",
-                run: { font: FONT_FAMILY, size: 32, color: "FFFFFF" },
+                run: { font: FONT_FAMILY, size: 32, color: "000000" },
                 paragraph: {
                     alignment: AlignmentType.JUSTIFIED,
                     spacing: { after: 80 }
