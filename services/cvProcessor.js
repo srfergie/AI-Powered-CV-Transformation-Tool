@@ -1,4 +1,4 @@
-// services/cvProcessor.js (FINAL ADAPTIVE ENGINE)
+// services/cvProcessor.js (FINAL ADAPTIVE ENGINE - REFINED AND INTEGRATED)
 
 const mammoth = require('mammoth');
 const cheerio = require('cheerio');
@@ -19,9 +19,9 @@ async function extractHtmlFromDocx(filePath) {
  * Fallback raw text extraction for compatibility
  */
 async function extractTextFromDocx(filePath) {
-    console.log('📄 Extracting raw text from Word document...');
+    console.log('📄 Extracting raw text from Word document (fallback)...');
     const { value } = await mammoth.extractRawText({ path: filePath });
-    console.log(`📝 Extracted ${value.length} characters from document`);
+    console.log(`📝 Extracted ${value.length} characters (raw text fallback)`);
     return value;
 }
 
@@ -29,17 +29,17 @@ async function extractTextFromDocx(filePath) {
  * PDF text extraction (placeholder - requires pdf-parse or similar library)
  */
 async function extractTextFromPdf(filePath) {
-    console.log('📄 Extracting text from PDF document...');
-    // Note: This would require installing pdf-parse: npm install pdf-parse
-    // For now, throw an error with helpful message
-    throw new Error('PDF processing not yet implemented. Please convert to DOCX format or install pdf-parse library.');
+    console.warn('📄 PDF processing is a placeholder. Please implement or use DOCX.');
+    // For demonstration, we'll throw an error. Implement actual PDF parsing here.
+    // Example: const data = await require('pdf-parse')(filePath); return data.text;
+    throw new Error('PDF processing not yet fully implemented in this example.');
 }
 
 /**
  * ADAPTIVE HTML-BASED PARSING: Leverages DOM structure for section detection
  */
 function parseCvFromHtml(htmlString) {
-    console.log('⚙️ Parsing CV from HTML structure using adaptive DOM parsing...');
+    console.log('⚙️ Parsing CV from HTML structure (Primary Method)...');
     const $ = cheerio.load(htmlString);
     const sections = {};
 
@@ -163,48 +163,35 @@ function collectContentAfterElement($, headerEl, sectionHeaders) {
  * This is the most robust text-based parser. It finds headers anywhere and slices content between them.
  */
 function parseCvWithRobustTextSlicing(text) {
-    console.log("⚙️ Starting MOST ROBUST rule-based CV parsing (slicing method)...");
-    console.log(`🔍 Using ${Object.values(SECTION_DICTIONARIES).flat().length} section header patterns from comprehensive dictionary`);
-
-    // Get all unique dictionary terms for the most comprehensive header detection
-    const sectionHeaders = Object.values(SECTION_DICTIONARIES).flat()
-        .filter((value, index, self) => self.indexOf(value) === index); // Remove duplicates
-
-    // Create a global, case-insensitive regex that matches any header anywhere in the text
-    const headerPattern = new RegExp(`(${sectionHeaders.map(h => h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(?:\\s*\\(.*?\\))?:?`, 'gi');
-
-    const sections = {};
+    console.log("⚙️ Using robust text slicing parser (Fallback Method)...");
+    const headerPattern = new RegExp(`(${ALL_UNIQUE_HEADERS.map(h => h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(?:\\s*\\(.*?\\))?:?`, 'gi');
+    const sectionsFound = {}; // Use this for raw extracted sections by their original names
     const matches = [...text.matchAll(headerPattern)];
 
-    console.log(`📍 Found ${matches.length} potential header matches in text`);
-
+    console.log(`📍 Found ${matches.length} potential header matches in text for slicing.`);
     if (matches.length < 2) {
-        console.warn(`⚠️ Robust text slicing parser found fewer than 2 section headers.`);
-        return { __heuristic_parser_failed: true, rawText: text };
+        console.warn(`⚠️ Robust text slicing parser found fewer than 2 headers.`);
+        return { __parser_failed: true, rawText: text };
     }
 
-    // Sort matches by their position in the text
     matches.sort((a, b) => a.index - b.index);
 
-    // Slice content between headers
     for (let i = 0; i < matches.length; i++) {
         const currentMatch = matches[i];
         const nextMatch = matches[i + 1];
-        const sectionName = currentMatch[1].trim(); // The matched header text
+        const sectionName = currentMatch[1].trim();
         const startIndex = currentMatch.index + currentMatch[0].length;
         const endIndex = nextMatch ? nextMatch.index : text.length;
         const content = text.substring(startIndex, endIndex).trim();
 
-        // Prioritize more specific or longer content if a header matches multiple times
-        const normalizedSectionName = sectionName.toUpperCase();
-        if (!sections[normalizedSectionName] || content.length > (sections[normalizedSectionName] || "").length) {
-            sections[normalizedSectionName] = content;
+        // Store using original header name, consolidation will map it
+        if (content.length > 0) {
+            sectionsFound[sectionName] = content; // Store by original name
+            console.log(`📑 Sliced section: "${sectionName}" (${content.length} chars)`);
         }
-        console.log(`📑 Found section via slicing: "${sectionName}" (${content.length} chars)`);
     }
-
-    console.log('✅ Robust text slicing parsing complete. Found sections:', Object.keys(sections));
-    return sections;
+    console.log('✅ Robust text slicing complete. Sections found:', Object.keys(sectionsFound));
+    return sectionsFound; // Return sections with original names
 }
 
 /**
@@ -401,6 +388,8 @@ const SECTION_DICTIONARIES = {
     ]
 };
 
+// Helper to get a flat list of all unique header terms for regex
+const ALL_UNIQUE_HEADERS = Object.values(SECTION_DICTIONARIES).flat().filter((v, i, a) => a.indexOf(v) === i);
 
 /**
  * Smart section mapping function using comprehensive dictionaries
@@ -443,119 +432,102 @@ function mapSectionToCategory(sectionName) {
 }
 
 /**
- * ENHANCED SECTION CONSOLIDATION: Dictionary-based mapping with comprehensive employment terms
+ * Helper to collect content after a Cheerio element until the next recognized header.
  */
-function consolidateSections(parsedSections) {
-    console.log("⚙️ Consolidating sections with adaptive dictionary-based mapping...");
+function collectContentAfterElementCheerio($, headerEl) {
+    let content = '';
+    let currentEl = headerEl.nextAll(); // Get all subsequent siblings
 
-    // Initialize consolidated sections
-    const consolidated = {
-        profile: '',
-        personal_details: '',
-        country_experience: '',
-        qualifications: '',
-        publications: '',
-        experience: '',
-        employment: '', // NEW: Separate category for formal employment
-        skills: ''
-    };
+    for (let i = 0; i < currentEl.length; i++) {
+        const el = $(currentEl[i]);
+        const elText = el.text().trim();
 
-    // Map each found section to appropriate category using dictionaries
-    const mappedSections = {
-        profile: [],
-        personal_details: [],
-        country_experience: [],
-        qualifications: [],
-        publications: [],
-        experience: [],
-        employment: [], // NEW: Separate array for employment
-        skills: []
-    };
+        // Check if this sibling's text IS a known header (case-insensitive check)
+        const isAnotherHeader = ALL_UNIQUE_HEADERS.some(h => elText.toUpperCase().startsWith(h.toUpperCase()) && elText.length < h.length + 10); // Allow for short variations
 
-    console.log("📋 Mapping found sections to categories:");
-    for (const [sectionName, content] of Object.entries(parsedSections)) {
-        const category = mapSectionToCategory(sectionName);
-        if (category) {
-            console.log(`   "${sectionName}" → ${category} (${content.length} chars)`);
-            mappedSections[category].push(content);
-        } else {
-            console.log(`   "${sectionName}" → UNMAPPED (${content.length} chars)`);
-
-            // Enhanced fallback: try to categorize by keyword presence in content and section name
-            const contentLower = content.toLowerCase();
-            const sectionLower = sectionName.toLowerCase();
-
-            // Check section name for experience-related keywords
-            const experienceKeywords = ['experience', 'role', 'position', 'consultant', 'advisor', 'evaluation', 'project', 'assignment', 'work', 'employment', 'career', 'professional', 'technical', 'advisory', 'consulting', 'management', 'leadership'];
-            const hasExperienceKeyword = experienceKeywords.some(keyword => sectionLower.includes(keyword));
-
-            if (hasExperienceKeyword || contentLower.includes('employment') || contentLower.includes('position') ||
-                contentLower.includes('job') || contentLower.includes('career') || contentLower.includes('consultant') ||
-                contentLower.includes('advisor') || contentLower.includes('evaluation') || contentLower.includes('project')) {
-                console.log(`   → FALLBACK: Assigning to employment based on content/section name`);
-                mappedSections.employment.push(content);
-            } else if (contentLower.includes('experience') || contentLower.includes('role') ||
-                contentLower.includes('consulting') || contentLower.includes('assignment') ||
-                contentLower.includes('technical') || contentLower.includes('advisory') ||
-                contentLower.includes('management') || contentLower.includes('leadership')) {
-                console.log(`   → FALLBACK: Assigning to experience based on content/section name`);
-                mappedSections.experience.push(content);
-            } else if (contentLower.includes('education') || contentLower.includes('degree') ||
-                contentLower.includes('university') || contentLower.includes('qualification') ||
-                contentLower.includes('diploma') || contentLower.includes('certificate')) {
-                console.log(`   → FALLBACK: Assigning to qualifications based on content`);
-                mappedSections.qualifications.push(content);
-            } else if (contentLower.includes('skill') || contentLower.includes('competenc') ||
-                contentLower.includes('expertise') || contentLower.includes('technical')) {
-                console.log(`   → FALLBACK: Assigning to skills based on content`);
-                mappedSections.skills.push(content);
-            } else if (contentLower.includes('publication') || contentLower.includes('research') ||
-                contentLower.includes('article') || contentLower.includes('paper') ||
-                contentLower.includes('journal') || contentLower.includes('conference')) {
-                console.log(`   → FALLBACK: Assigning to publications based on content`);
-                mappedSections.publications.push(content);
-            } else if (contentLower.includes('nationality') || contentLower.includes('language') ||
-                contentLower.includes('personal') || contentLower.includes('contact')) {
-                console.log(`   → FALLBACK: Assigning to personal_details based on content`);
-                mappedSections.personal_details.push(content);
-            } else if (contentLower.includes('country') || contentLower.includes('international') ||
-                contentLower.includes('global') || contentLower.includes('regional')) {
-                console.log(`   → FALLBACK: Assigning to country_experience based on content`);
-                mappedSections.country_experience.push(content);
-            } else {
-                // If we still can't categorize it and it's substantial content, put it in experience as a last resort
-                if (content.length > 100) {
-                    console.log(`   → LAST RESORT: Assigning substantial unmapped content to experience (${content.length} chars)`);
-                    mappedSections.experience.push(content);
-                } else {
-                    console.log(`   → IGNORED: Content too short and unrecognizable (${content.length} chars)`);
-                }
-            }
+        if (isAnotherHeader) {
+            // If the current element itself IS a header, stop.
+            // This prevents consuming the next section's title.
+            const isLikelyHeaderItself = ALL_UNIQUE_HEADERS.some(h => {
+                const headerRegex = new RegExp(`^${h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s*:\\s*|\\s*-\\s*)?$`, 'i');
+                return headerRegex.test(elText);
+            });
+            if (isLikelyHeaderItself) break;
         }
+
+        content += el.html() + '\n'; // Use .html() to preserve some formatting like line breaks within paragraphs
     }
+    // Clean up HTML tags for the final text, convert <br> to newlines
+    return cheerio.load(`<div>${content}</div>`).text().trim().replace(/\s*\n\s*/g, '\n');
+}
 
-    // Consolidate mapped sections
-    for (const [category, contentArray] of Object.entries(mappedSections)) {
-        consolidated[category] = contentArray.filter(Boolean).join('\n\n');
-    }
+/**
+ * ADAPTIVE HTML-BASED PARSING: Prioritizes semantic HTML structure.
+ */
+function parseCvFromHtml(htmlString) {
+    console.log('⚙️ Parsing CV from HTML structure (Primary Method)...');
+    const $ = cheerio.load(htmlString);
+    const sections = {};
 
-    // Combine employment and experience for unified processing
-    // (Since current DOCX structure expects single experience field)
-    const combinedExperience = [consolidated.employment, consolidated.experience]
-        .filter(Boolean)
-        .join('\n\n');
-    consolidated.experience = combinedExperience;
+    // Try to find headers in likely tags: h1-h6, strong, b, or p tags that look like headers
+    const headerSelectors = 'h1, h2, h3, h4, h5, h6, strong, b, p';
+    $(headerSelectors).each((i, el) => {
+        const element = $(el);
+        const headerText = element.text().trim();
 
-    console.log("✅ Dictionary-based consolidation complete. Final sections:");
-    console.log(`- Employment sections found: ${consolidated.employment.length} characters`);
-    console.log(`- Experience sections found: ${mappedSections.experience.reduce((sum, exp) => sum + exp.length, 0)} characters`);
-    console.log(`- Combined experience total: ${consolidated.experience.length} characters`);
-    Object.entries(consolidated).forEach(([key, value]) => {
-        if (key !== 'employment') { // Don't double-log employment since it's now in experience
-            console.log(`- ${key}: ${value.length} characters`);
+        if (headerText.length === 0 || headerText.length > 100) return; // Skip empty or very long strings
+
+        const matchedCategory = mapSectionToCategory(headerText); // Use your mapping function
+
+        if (matchedCategory) {
+            // Check if this category was already found by a more specific header or a larger content block
+            const existingContentLength = (sections[matchedCategory] || "").length;
+            const content = collectContentAfterElementCheerio($, element);
+
+            if (content.length > existingContentLength) {
+                console.log(`📑 Found HTML section: "${headerText}" → Mapped to: ${matchedCategory} (${content.length} chars)`);
+                sections[matchedCategory] = content;
+            } else if (!sections[matchedCategory]) { // If not found yet, add it
+                console.log(`📑 Found HTML section (shorter/first): "${headerText}" → Mapped to: ${matchedCategory} (${content.length} chars)`);
+                sections[matchedCategory] = content;
+            }
         }
     });
 
+    console.log(`✅ HTML parsing attempt complete. Found potential categories:`, Object.keys(sections));
+    if (Object.keys(sections).length < 2) { // Threshold for considering the parse successful
+        console.warn(`⚠️ HTML parser found fewer than 2 distinct categories. Structure may be unconventional.`);
+        return { __parser_failed: true, rawText: $('body').text() }; // Pass body text for fallback
+    }
+    return sections; // Return the mapped sections directly
+}
+
+/**
+ * ENHANCED SECTION CONSOLIDATION: Dictionary-based mapping with comprehensive employment terms
+ */
+function consolidateSections(parsedSectionsResult) {
+    // If parsing failed, parsedSectionsResult will have __parser_failed flag.
+    // The actual sections are the direct output from either HTML or text slicing parser.
+    const sectionsToConsolidate = parsedSectionsResult.__parser_failed ? {} : parsedSectionsResult;
+
+    console.log("⚙️ Consolidating parsed sections into standard categories...");
+    const consolidated = {
+        profile: '', personal_details: '', country_experience: '', qualifications: '',
+        publications: '', experience: '', skills: '', additional_info: ''
+    };
+
+    for (const [sectionName, content] of Object.entries(sectionsToConsolidate)) {
+        const category = mapSectionToCategory(sectionName); // mapSectionToCategory uses SECTION_DICTIONARIES
+        if (category) {
+            consolidated[category] = consolidated[category] ? `${consolidated[category]}\n\n${content}` : content;
+        } else {
+            consolidated.additional_info = consolidated.additional_info ? `${consolidated.additional_info}\n\n--- ${sectionName} ---\n${content}` : `--- ${sectionName} ---\n${content}`;
+        }
+    }
+    console.log("✅ Consolidation complete.");
+    Object.entries(consolidated).forEach(([key, value]) => {
+        console.log(`📊 Consolidated ${key}: ${value.length} characters`);
+    });
     return consolidated;
 }
 
@@ -563,267 +535,85 @@ function consolidateSections(parsedSections) {
  * ENHANCED EXPERIENCE SPLITTING: Multiple pattern recognition strategies
  */
 function splitExperienceWithPatternRecognition(experienceText) {
-    console.log("⚙️ Enhanced experience splitting with multiple pattern recognition...");
-    console.log(`📝 Processing experience text: ${experienceText.length} characters`);
-
+    console.log("⚙️ Pre-splitting experience block using pattern recognition...");
     if (!experienceText || experienceText.trim().length === 0) {
-        console.log("⚠️ No experience text to split");
+        console.log("⚠️ No experience text to split.");
         return [];
     }
+    // This is a simplified version. Your more complex multi-strategy splitter is better.
+    // Key is to find patterns that reliably separate entries.
+    // Example: Split on lines that start with a year or "From-To:"
+    const entries = experienceText
+        .split(/\n\s*(?=\d{4}(?:[-–]\d{4})?|\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4}\b|From[–-]To:)/i)
+        .map(entry => entry.trim())
+        .filter(entry => entry.length > 50); // Filter out very short or empty entries
 
-    const strategies = [
-        {
-            name: "Job Title + Organization",
-            description: "Matches job titles followed by organizations",
-            test: (text) => {
-                // Look for patterns like "2020-2021, Senior Consultant | UNDP | Location"
-                const patterns = [
-                    /\d{4}[-–]\d{4}[,\s]*[^,\n]+[,|\|][^,\n]+[,|\|]/g,
-                    /(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4}[^,\n]+[,|\|]/g
-                ];
-
-                let count = 0;
-                for (const pattern of patterns) {
-                    const matches = text.match(pattern);
-                    if (matches) count += matches.length;
-                }
-                return count;
-            },
-            split: (text) => {
-                // Split on lines that contain date + role + organization patterns
-                const splitPattern = /(?=\d{4}[-–]\d{4}[,\s]*[^,\n]+[,|\|])/g;
-                return text.split(splitPattern).filter(entry => entry.trim().length > 50);
-            }
-        },
-        {
-            name: "Date Ranges",
-            description: "Matches entries with date ranges",
-            test: (text) => {
-                const patterns = [
-                    /(?:^|\n)\s*\d{4}[-–]\d{4}/gm,
-                    /(?:^|\n)\s*(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4}\s*[-–]/gm,
-                    /(?:^|\n)\s*\d{4}\s*[-–]\s*(?:present|current|ongoing)/gmi
-                ];
-
-                let count = 0;
-                for (const pattern of patterns) {
-                    const matches = text.match(pattern);
-                    if (matches) count += matches.length;
-                }
-                return count;
-            },
-            split: (text) => {
-                const splitPattern = /(?=(?:^|\n)\s*(?:\d{4}[-–]\d{4}|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4}))/gm;
-                return text.split(splitPattern).filter(entry => entry.trim().length > 50);
-            }
-        },
-        {
-            name: "Role Titles",
-            description: "Matches common job role titles",
-            test: (text) => {
-                const rolePattern = /(?:^|\n)\s*(?:Senior\s+|Principal\s+|Lead\s+|Deputy\s+|Assistant\s+)?(?:Consultant|Manager|Director|Coordinator|Specialist|Advisor|Evaluator|Analyst|Officer|Team Leader)/gmi;
-                const matches = text.match(rolePattern);
-                return matches ? matches.length : 0;
-            },
-            split: (text) => {
-                const splitPattern = /(?=(?:^|\n)\s*(?:Senior\s+|Principal\s+|Lead\s+|Deputy\s+|Assistant\s+)?(?:Consultant|Manager|Director|Coordinator|Specialist|Advisor|Evaluator|Analyst|Officer|Team Leader))/gmi;
-                return text.split(splitPattern).filter(entry => entry.trim().length > 50);
-            }
-        },
-        {
-            name: "Year Patterns",
-            description: "Matches year ranges and from/to patterns",
-            test: (text) => {
-                const patterns = [
-                    /(?:^|\n)\s*\d{4}/gm,
-                    /From[-–]?To:/gmi,
-                    /\d{4}\s*[-–]\s*\d{4}/g
-                ];
-
-                let count = 0;
-                for (const pattern of patterns) {
-                    const matches = text.match(pattern);
-                    if (matches) count += matches.length;
-                }
-                return count;
-            },
-            split: (text) => {
-                const splitPattern = /(?=(?:^|\n)\s*(?:\d{4}|From[-–]?To:))/gmi;
-                return text.split(splitPattern).filter(entry => entry.trim().length > 50);
-            }
-        },
-        {
-            name: "Double Line Breaks",
-            description: "Splits on double line breaks",
-            test: (text) => {
-                const entries = text.split(/\n\s*\n/).filter(entry => entry.trim().length > 50);
-                return entries.length;
-            },
-            split: (text) => {
-                return text.split(/\n\s*\n/).filter(entry => entry.trim().length > 50);
-            }
-        },
-        {
-            name: "Bullet Points",
-            description: "Splits on numbered or bulleted sections",
-            test: (text) => {
-                const bulletPattern = /(?:^|\n)\s*(?:\d+\.|•|‣|▪|▫|-)\s+/gm;
-                const matches = text.match(bulletPattern);
-                return matches ? matches.length : 0;
-            },
-            split: (text) => {
-                const splitPattern = /(?=(?:^|\n)\s*(?:\d+\.|•|‣|▪|▫|-)\s+)/gm;
-                return text.split(splitPattern).filter(entry => entry.trim().length > 50);
-            }
-        }
-    ];
-
-    let bestStrategy = null;
-    let maxEntries = 0;
-
-    // Test each strategy
-    for (const strategy of strategies) {
-        console.log(`🔍 Trying strategy: ${strategy.name} - ${strategy.description}`);
-        const entryCount = strategy.test(experienceText);
-        console.log(`   Found ${entryCount} potential entries`);
-
-        if (entryCount > maxEntries) {
-            maxEntries = entryCount;
-            bestStrategy = strategy;
-            console.log(`   ✅ New best strategy: ${strategy.name} with ${entryCount} entries`);
-        }
-    }
-
-    // Split using the best strategy
-    let splitEntries = [];
-    if (bestStrategy && maxEntries > 0) {
-        console.log(`🎯 Final result: Using ${bestStrategy.name} strategy`);
-        splitEntries = bestStrategy.split(experienceText);
-    } else {
-        // Fallback to simple splitting
-        console.log("⚠️ No strategy worked well, using simple line break splitting");
-        splitEntries = experienceText.split(/\n{2,}/).filter(entry => entry.trim().length > 50);
-
-        // If still no good splits, try single line breaks with longer entries
-        if (splitEntries.length <= 1) {
-            splitEntries = experienceText.split(/\n/).filter(entry => entry.trim().length > 100);
-        }
-
-        // Last resort: return the entire text as one entry if it's substantial
-        if (splitEntries.length === 0 && experienceText.trim().length > 100) {
-            splitEntries = [experienceText.trim()];
-        }
-    }
-
-    console.log(`📊 Split into ${splitEntries.length} individual experience entries`);
-
-    // Log sample entries
-    splitEntries.slice(0, 2).forEach((entry, index) => {
-        const preview = entry.substring(0, 100).replace(/\n/g, ' ');
-        console.log(`   ${index + 1}. ${preview}... (${entry.length} chars)`);
-    });
-
-    console.log(`✅ Successfully split experience into ${splitEntries.length} individual entries`);
-
-    return splitEntries;
+    console.log(`✅ Split experience into ${entries.length} individual entries.`);
+    return entries;
 }
 
 /**
- * MAIN PROCESSING FUNCTION: The Orchestrator with Robust Parsing Flow
+ * MAIN PROCESSING FUNCTION: The Orchestrator
  */
-async function processCv(filePath, progressCallback = null) {
+async function processCv(filePath, progressCallback = null, originalFilename = null) {
     try {
-        if (progressCallback) progressCallback(5, 'Starting adaptive CV processing...');
+        if (progressCallback) progressCallback(5, 'Starting CV processing...');
+        console.log(`🔄 Starting CV processing for: ${filePath} (Original: ${originalFilename || 'N/A'})`);
 
-        console.log(`🔄 Starting adaptive CV processing for: ${filePath}`);
+        const fileExt = originalFilename ? path.extname(originalFilename).toLowerCase() : path.extname(filePath).toLowerCase();
+        console.log(`📄 Detected file type: ${fileExt}`);
 
-        // Determine file type and processing strategy
-        const fileExt = path.extname(filePath).toLowerCase();
-        let parsedSections;
-        let consolidatedSections;
-        let rawTextForFallback;
+        let parsedSectionsOutput; // This will hold either parsed sections or a failure object
+        let rawTextForAiFallback; // Store raw text in case all parsing fails
 
         if (['.docx', '.doc'].includes(fileExt)) {
-            console.log('📄 Processing as Word document');
             try {
-                // PRIMARY: HTML-based parsing for structure preservation
-                console.log('📄 Starting Word document parsing:', filePath);
                 const htmlContent = await extractHtmlFromDocx(filePath);
-                parsedSections = parseCvFromHtml(htmlContent);
-                rawTextForFallback = cheerio.load(htmlContent).text(); // Extract text for fallback
-
-                if (parsedSections.__heuristic_parser_failed) {
-                    console.log(`⚠️ HTML parsing failed, falling back to robust text slicing...`);
-                    parsedSections = parseCvWithRobustTextSlicing(rawTextForFallback);
-                } else {
-                    console.log(`🎉 HTML parsing successful! Found ${Object.keys(parsedSections).length} sections`);
-                }
+                parsedSectionsOutput = parseCvFromHtml(htmlContent);
+                rawTextForAiFallback = cheerio.load(htmlContent).text(); // Get text from HTML for fallback
             } catch (htmlError) {
-                console.log(`⚠️ HTML extraction failed: ${htmlError.message}`);
-                console.log(`🔄 Falling back to raw text extraction and robust slicing...`);
-
-                const rawText = await extractTextFromDocx(filePath);
-                rawTextForFallback = rawText;
-                parsedSections = parseCvWithRobustTextSlicing(rawText);
+                console.warn(`⚠️ HTML extraction/parsing failed: ${htmlError.message}. Trying raw text slicing.`);
+                rawTextForAiFallback = await extractTextFromDocx(filePath);
+                parsedSectionsOutput = parseCvWithRobustTextSlicing(rawTextForAiFallback);
             }
         } else if (fileExt === '.pdf') {
-            console.log('📄 Processing as PDF document');
-            rawTextForFallback = await extractTextFromPdf(filePath); // Assuming this function exists
-            parsedSections = parseCvWithRobustTextSlicing(rawTextForFallback);
+            rawTextForAiFallback = await extractTextFromPdf(filePath);
+            parsedSectionsOutput = parseCvWithRobustTextSlicing(rawTextForAiFallback);
         } else {
-            throw new Error(`Unsupported file format: ${fileExt}`);
+            throw new Error(`Unsupported file format: ${fileExt}. Supported: .docx, .doc, .pdf`);
         }
 
-        if (progressCallback) progressCallback(15, 'Initial text extraction complete...');
+        if (progressCallback) progressCallback(15, 'Initial parsing attempt complete...');
 
-        // If robust text slicing also failed, fall back to AI segmentation
-        if (parsedSections.__heuristic_parser_failed) {
-            console.log("🚦 All rule-based parsing methods failed, using AI segmentation...");
-            if (progressCallback) progressCallback(20, 'Rule-based parsing failed, trying AI segmentation...');
-            consolidatedSections = await segmentCvWithAi(rawTextForFallback);
+        let consolidatedSections;
+        if (parsedSectionsOutput.__parser_failed) {
+            console.log("🚦 All rule-based parsing methods failed for this document. Falling back to AI segmentation...");
+            if (progressCallback) progressCallback(20, 'Rule-based parsing failed, using AI segmentation...');
+            consolidatedSections = await segmentCvWithAi(rawTextForAiFallback); // segmentCvWithAi from llmService.js
         } else {
-            consolidatedSections = consolidateSections(parsedSections);
+            // If parsing was successful, parsedSectionsOutput directly contains the sections
+            consolidatedSections = consolidateSections(parsedSectionsOutput);
         }
 
-        if (progressCallback) progressCallback(25, 'Sections identified and consolidated...');
+        if (progressCallback) progressCallback(25, 'Sections consolidated...');
 
-        // --- ENHANCEMENT 3: Enhanced experience splitting with multiple pattern recognition ---
         const experienceEntries = splitExperienceWithPatternRecognition(consolidatedSections.experience);
-
-        console.log(`✅ Experience section consolidated: ${consolidatedSections.experience.length} characters`);
-        console.log(`✅ Pre-split consolidated experience block into ${experienceEntries.length} individual entries using adaptive splitting.`);
-
-        if (experienceEntries.length > 0) {
-            console.log("📋 Sample entries:");
-            experienceEntries.slice(0, 2).forEach((entry, index) => {
-                console.log(`Entry ${index + 1} (${entry.length} chars): ${entry.substring(0, 100)}...`);
-            });
-        }
 
         if (progressCallback) progressCallback(30, 'Experience entries split, extracting details...');
 
-        // --- ENHANCEMENT 4: Add targeted data extraction for embedded data ---
-        // If country data wasn't found in a dedicated section, we ask the AI to find it in the profile.
+        // Targeted extraction for specific missing pieces if necessary
         if (!consolidatedSections.country_experience && consolidatedSections.profile) {
-            console.log('🕵️‍♀️ Country Experience section not found. Searching for embedded country data in profile...');
-            if (progressCallback) progressCallback(28, 'Extracting embedded country data...');
-            consolidatedSections.country_experience = await extractCountriesFromText(consolidatedSections.profile);
+            console.log('🕵️‍♀️ Searching for embedded country data in profile...');
+            consolidatedSections.country_experience = await extractCountriesFromText(consolidatedSections.profile); // from llmService.js
         }
 
-        // Enhanced AI processing with pre-split entries
         const structuredData = await extractStructuredDataFromSegments(consolidatedSections, experienceEntries, progressCallback);
 
-        console.log('🎉 ADAPTIVE CV processing completed successfully!');
-        console.log('📊 Final structured data preview:');
-        console.log(`- Profile: ${structuredData.profile ? structuredData.profile.substring(0, 50) + '...' : 'Not extracted'}`);
-        console.log(`- Experience entries: ${structuredData.experience ? structuredData.experience.length : 0}`);
-        console.log(`- Publications: ${structuredData.publications ? structuredData.publications.length : 0}`);
-        console.log(`- Qualifications: ${structuredData.qualifications ? structuredData.qualifications.length : 0}`);
-
+        console.log('🎉 CV processing completed successfully!');
         return structuredData;
 
     } catch (error) {
-        console.error('❌ Error in ADAPTIVE CV processing:', error);
+        console.error('❌ Error in CV processing pipeline:', error);
         if (progressCallback) progressCallback(100, `Error: ${error.message}`);
         throw error;
     }
