@@ -1,200 +1,134 @@
+// services/cvProcessor.js (FINAL, MOST RESILIENT VERSION)
+const cheerio = require('cheerio');
+// Assume you have these service files to handle DOCX and PDF parsing
 const { parseWordDocument } = require('./wordParserService');
 const { parsePdf } = require('./pdfParserService');
-const { extractStructuredDataFromSegments } = require('./llmService');
+// Assume llmService exports these functions
+const { extractStructuredDataFromSegments, segmentCvWithAi } = require('./llmService');
 const path = require('path');
 
+async function extractHtmlFromDocx(filePath) {
+    console.log('📄 Extracting as HTML to preserve structure...');
+    const result = await mammoth.convertToHtml({ path: filePath });
+    console.log(`✅ HTML extracted: ${result.value.length} characters`);
+    return result.value;
+}
 /**
- * Parses CV text into sections using deterministic, rule-based heuristics
+ * FINAL VERSION: Parses CV text by finding all known headers and slicing the document by their character positions.
+ * This is highly resilient to complex DOCX/PDF layouts that can garble the raw text output.
  * @param {string} text - Raw CV text
- * @returns {Object} - Sections identified in the CV
+ * @returns {Object} - An object containing the parsed sections or a failure signal.
  */
 function parseCvWithHeuristics(text) {
-    console.log("⚙️ Starting rule-based CV parsing...");
+    console.log("⚙️ Starting advanced rule-based CV parsing (slicing method)...");
 
-    // Known section headers to look for (case-insensitive)
     const sectionHeaders = [
-        "Profile",
-        "Nationality & Languages",
-        "Qualifications",
-        "Country Work Experience",
-        "Experience",
-        "Highlighted experience",
-        "Employment",
-        "Publications",
-        "Education",
-        "Skills",
-        "Languages",
-        "Technical Skills",
-        "Professional Experience",
-        "Work History",
-        "Career Summary",
-        "Academic Background",
-        "Research Publications",
-        "Journal Articles",
-        "Conference Papers"
+        "SUMMARY OF QUALIFICATIONS", "PROFESSIONAL EXPERIENCE", "ACADEMIC BACKGROUND",
+        "Profile", "Summary", "Career Objective", "Personal Statement",
+        "Experience", "Work History", "Employment", "Highlighted experience",
+        "Education", "Qualifications",
+        "Publications", "Research Publications", "Journal Articles", "Conference Papers",
+        "Skills", "Technical Skills",
+        "Languages", "Nationality & Languages",
+        "Country Work Experience"
     ];
 
-    // Create a regex pattern that matches any of these headers at the start of a line
-    // The pattern accounts for variations like "(selected)" or ":" after the header
-    const headerPattern = new RegExp(
-        `^(${sectionHeaders.join('|')})(?:\\s*\\([^)]*\\))?\\s*:?\\s*$`,
-        'im'
-    );
+    // Create a global, case-insensitive regex to find all occurrences.
+    const headerPattern = new RegExp(`(${sectionHeaders.join('|')})(?:\\s*\\(.*?\\))?:?`, 'gi');
 
-    // Split the text into lines while preserving empty lines
-    const lines = text.split(/\r?\n/);
+    // Use matchAll to get all matches along with their character indices.
+    const matches = [...text.matchAll(headerPattern)];
+
+    // If we find fewer than 2 headers, the CV is likely unstructured.
+    // Trigger the fallback to let the AI try to segment it.
+    if (matches.length < 2) {
+        console.warn(`⚠️ Rule-based parser found fewer than 2 section headers. This CV may be unstructured. Triggering AI fallback.`);
+        return { __heuristic_parser_failed: true, rawText: text };
+    }
+
     const sections = {};
-    let currentSection = null;
-    let currentContent = [];
-    let inHeader = false; // Track if we're in a potential header region
+    // Sort matches by their character index to ensure correct processing order.
+    matches.sort((a, b) => a.index - b.index);
 
-    // Helper function to save the current section
-    const saveCurrentSection = () => {
-        if (currentSection && currentContent.length > 0) {
-            // Clean up the content: remove empty lines from start/end, preserve internal spacing
-            const cleanContent = currentContent
-                .join('\n')
-                .trim()
-                .replace(/\n{3,}/g, '\n\n'); // Replace 3+ newlines with 2
-            if (cleanContent) {
-                sections[currentSection] = cleanContent;
-            }
-        }
-    };
+    // Slice the main text string based on the positions of the found headers.
+    for (let i = 0; i < matches.length; i++) {
+        const currentMatch = matches[i];
+        const nextMatch = matches[i + 1];
 
-    // Process each line
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        const nextLine = i < lines.length - 1 ? lines[i + 1].trim() : '';
+        // The name of the section is the first captured group in the regex.
+        const sectionName = currentMatch[1].trim();
+        // The content starts after the full matched header string.
+        const startIndex = currentMatch.index + currentMatch[0].length;
+        // The content ends at the start of the next header, or at the end of the text if it's the last one.
+        const endIndex = nextMatch ? nextMatch.index : text.length;
 
-        // Check for section header
-        const headerMatch = line.match(headerPattern);
+        const content = text.substring(startIndex, endIndex).trim();
 
-        if (headerMatch) {
-            // Save previous section if it exists
-            saveCurrentSection();
-
-            // Start new section
-            currentSection = headerMatch[1];
-            currentContent = [];
-            inHeader = true;
-            console.log(`📑 Found section: ${currentSection}`);
-            continue;
-        }
-
-        // If we're in a section, add content
-        if (currentSection) {
-            // Skip empty lines at the start of a section
-            if (currentContent.length === 0 && !line) continue;
-
-            currentContent.push(lines[i]); // Use original line to preserve formatting
+        // Use the most specific header found (e.g. "PROFESSIONAL EXPERIENCE" is more specific than "Experience")
+        const normalizedSectionName = sectionName.toUpperCase();
+        if (!sections[normalizedSectionName] || content.length > (sections[normalizedSectionName] || "").length) {
+            sections[normalizedSectionName] = content;
         }
     }
 
-    // Save the last section
-    saveCurrentSection();
-
-    // Log the results
-    console.log('✅ Rule-based parsing complete. Found sections:', Object.keys(sections));
-
-    // Log character counts for verification
-    for (const [section, content] of Object.entries(sections)) {
-        console.log(`📊 ${section}: ${content.length} characters`);
-    }
-
+    console.log('✅ Advanced parsing complete. Found sections:', Object.keys(sections));
     return sections;
 }
 
 /**
- * Consolidates parsed sections into a standardized format
- * @param {Object} parsedSections - Sections from rule-based parsing
- * @returns {Object} - Consolidated sections
+ * Consolidates the parsed sections into a standardized format for the AI.
  */
 function consolidateSections(parsedSections) {
-    console.log('⚙️ Consolidating sections...');
+    console.log('⚙️ Consolidating sections for AI processing...');
 
     const consolidated = {
         profile: '',
         personal_details: '',
-        country_experience: '',
         qualifications: '',
         experience: '',
         publications: '',
         skills: '',
-        languages: '',
         additional: ''
     };
 
-    // Helper function to append content with proper spacing
-    const appendContent = (target, content) => {
-        if (!content) return target;
-        return target ? `${target}\n\n${content}` : content;
-    };
-
-    // Map sections to their consolidated categories
+    // Define all possible aliases for our standard sections.
     const sectionMappings = {
-        'Profile': 'profile',
-        'Nationality & Languages': 'personal_details',
-        'Country Work Experience': 'country_experience',
-        'Qualifications': 'qualifications',
-        'Education': 'qualifications',
-        'Academic Background': 'qualifications',
-        'Publications': 'publications',
-        'Research Publications': 'publications',
-        'Journal Articles': 'publications',
-        'Conference Papers': 'publications',
-        'Skills': 'skills',
-        'Technical Skills': 'skills',
-        'Languages': 'languages'
+        'SUMMARY OF QUALIFICATIONS': 'profile',
+        'PROFILE': 'profile',
+        'NATIONALITY & LANGUAGES': 'personal_details',
+        'ACADEMIC BACKGROUND': 'qualifications', 'QUALIFICATIONS': 'qualifications',
+        'PROFESSIONAL EXPERIENCE': 'experience', 'EXPERIENCE': 'experience', 'EMPLOYMENT': 'experience',
+        'PUBLICATIONS': 'publications'
+        // Add other mappings as needed
     };
 
-    // Experience sections to combine (in order)
-    const experienceSections = [
-        'Highlighted experience',
-        'Experience',
-        'Professional Experience',
-        'Employment',
-        'Work History',
-        'Career Summary'
-    ];
+    // Combine all sections that map to the same category.
+    for (const [sectionName, content] of Object.entries(parsedSections)) {
+        const upperCaseSectionName = sectionName.toUpperCase();
+        const targetCategory = sectionMappings[upperCaseSectionName];
 
-    // Process experience sections first (to maintain order)
-    for (const section of experienceSections) {
-        if (parsedSections[section]) {
-            consolidated.experience = appendContent(consolidated.experience, parsedSections[section]);
-            console.log(`📝 Added ${section} to experience (${parsedSections[section].length} chars)`);
+        if (targetCategory) {
+            consolidated[targetCategory] = consolidated[targetCategory]
+                ? `${consolidated[targetCategory]}\n\n${content}`
+                : content;
+        } else {
+            console.log(`📝 Found unmapped section: "${sectionName}". Adding to 'additional'.`);
+            consolidated.additional = consolidated.additional
+                ? `${consolidated.additional}\n\n--- ${sectionName} ---\n${content}`
+                : `--- ${sectionName} ---\n${content}`;
         }
     }
 
-    // Process other mapped sections
-    for (const [originalSection, content] of Object.entries(parsedSections)) {
-        const targetSection = sectionMappings[originalSection];
-        if (targetSection && targetSection !== 'experience') { // Skip experience as it's already handled
-            consolidated[targetSection] = appendContent(consolidated[targetSection], content);
-            console.log(`📝 Added ${originalSection} to ${targetSection} (${content.length} chars)`);
-        }
-    }
-
-    // Log final character counts
-    console.log('\n📊 Final consolidated section lengths:');
-    for (const [section, content] of Object.entries(consolidated)) {
-        console.log(`${section}: ${content.length} characters`);
-    }
-
+    console.log('✅ Consolidation complete.');
     return consolidated;
 }
 
 /**
- * Processes a CV file and transforms it into structured data
- * @param {string} filePath - Path to the CV file
- * @returns {Promise<Object>} - Structured CV data
+ * The main orchestrator function for processing a CV file.
  */
 async function processAndTransformCv(filePath) {
     try {
         console.log(`🔄 Starting CV processing for: ${filePath}`);
-
-        // Step 1: Extract raw text based on file type
-        console.log('📄 Extracting text from document...');
         const fileExt = path.extname(filePath).toLowerCase();
         let rawText;
 
@@ -203,23 +137,26 @@ async function processAndTransformCv(filePath) {
         } else if (fileExt === '.pdf') {
             rawText = await parsePdf(filePath);
         } else {
-            throw new Error('Unsupported file format. Please upload a PDF or Word document.');
+            throw new Error('Unsupported file format.');
         }
-
         console.log(`📝 Extracted ${rawText.length} characters`);
 
-        // Step 2: Rule-based Section Parsing (No AI)
-        console.log('🔍 Stage 1: Performing rule-based section parsing...');
-        const parsedSections = parseCvWithHeuristics(rawText);
+        // STAGE 1: Rule-based Parsing
+        let parsedSections = parseCvWithHeuristics(rawText);
+        let consolidatedSections;
 
-        // Step 3: Section Consolidation (No AI)
-        console.log('⚙️ Stage 1.5: Consolidating sections with code-based logic...');
-        const consolidatedSections = consolidateSections(parsedSections);
+        // STAGE 1.5: Fallback and Consolidation
+        if (parsedSections.__heuristic_parser_failed) {
+            console.log("🚦 Heuristic parsing failed, falling back to AI segmentation...");
+            // The AI gets the raw text to try and identify sections itself.
+            consolidatedSections = await segmentCvWithAi(parsedSections.rawText);
+        } else {
+            consolidatedSections = consolidateSections(parsedSections);
+        }
 
-        // Log the length of the experience section for verification
-        console.log(`✅ Experience section consolidated: ${consolidatedSections.experience.length} characters`);
+        console.log(`Experience section ready for AI: ${consolidatedSections.experience.length} characters`);
 
-        // Step 4: Structured Extraction (AI)
+        // STAGE 2: AI-based Structured Extraction
         console.log('🤖 Stage 2: Extracting structured data from consolidated sections...');
         const structuredData = await extractStructuredDataFromSegments(consolidatedSections);
 
@@ -233,7 +170,5 @@ async function processAndTransformCv(filePath) {
 }
 
 module.exports = {
-    processAndTransformCv,
-    parseCvWithHeuristics,  // Exported for testing
-    consolidateSections     // Exported for testing
-}; 
+    processAndTransformCv
+};
