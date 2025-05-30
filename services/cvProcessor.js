@@ -1225,6 +1225,15 @@ async function processCv(filePath, progressCallback = null, originalFilename = n
             }
         }
 
+        // Enhanced profile extraction - use pattern-based extraction as fallback/supplement
+        if (!structuredData.profile || structuredData.profile === 'AI extraction temporarily unavailable. Please check server configuration.' ||
+            structuredData.profile.length < 100) {
+            const extractedProfile = extractProfileFromCV(rawTextForAiFallback, consolidatedSections);
+            if (extractedProfile && extractedProfile.length > 100) {
+                structuredData.profile = extractedProfile;
+            }
+        }
+
         if (progressCallback) progressCallback(100, 'Processing complete!');
 
         return structuredData;
@@ -1431,6 +1440,98 @@ function mapProficiency(proficiencyText, proficiencyKeywords) {
     }
 
     return 'Not specified';
+}
+
+/**
+ * Enhanced extraction of profile from CV text
+ */
+function extractProfileFromCV(fullText, segments) {
+    // First try to use the already parsed profile section
+    if (segments.profile && segments.profile.trim().length > 50) {
+        return segments.profile.trim();
+    }
+
+    // Look for profile in other sections that might contain it
+    const profileSources = [
+        segments.profile,
+        segments.skills,
+        segments.summary,
+        segments.overview,
+        segments.expertise
+    ].filter(section => section && section.trim().length > 50);
+
+    if (profileSources.length > 0) {
+        // Combine relevant sections that form the profile
+        return profileSources.join('\n\n').trim();
+    }
+
+    // Pattern-based extraction from full text
+    const profilePatterns = [
+        // Look for explicit profile sections
+        /(?:professional\s+)?(?:profile|summary|overview)\s*[:=]?\s*\n([^]+?)(?=\n\s*(?:EDUCATION|EXPERIENCE|QUALIFICATIONS|EMPLOYMENT|NATIONALITY|LANGUAGES|COUNTRY|$))/gi,
+        // Areas of expertise pattern
+        /areas?\s+of\s+expertise\s*[:=]?\s*([^]+?)(?=\n\s*(?:EDUCATION|EXPERIENCE|QUALIFICATIONS|EMPLOYMENT|NATIONALITY|LANGUAGES|COUNTRY|Over\s+\d+\s+years|$))/gi,
+        // Executive summary pattern
+        /executive\s+summary\s*[:=]?\s*\n([^]+?)(?=\n\s*(?:EDUCATION|EXPERIENCE|QUALIFICATIONS|EMPLOYMENT|NATIONALITY|LANGUAGES|COUNTRY|$))/gi,
+        // About me pattern
+        /about\s+(?:me|myself)\s*[:=]?\s*\n([^]+?)(?=\n\s*(?:EDUCATION|EXPERIENCE|QUALIFICATIONS|EMPLOYMENT|NATIONALITY|LANGUAGES|COUNTRY|$))/gi
+    ];
+
+    for (const pattern of profilePatterns) {
+        const matches = [...fullText.matchAll(pattern)];
+        for (const match of matches) {
+            const profileText = match[1].trim();
+            if (profileText && profileText.length > 100) {
+                return profileText;
+            }
+        }
+    }
+
+    // Look for profile-like content at the beginning of the CV
+    const lines = fullText.split('\n');
+    let profileContent = [];
+    let foundName = false;
+    let inProfile = false;
+
+    for (let i = 0; i < Math.min(lines.length, 50); i++) {
+        const line = lines[i].trim();
+
+        // Skip empty lines at start
+        if (!line && profileContent.length === 0) continue;
+
+        // Skip obvious headers and contact info
+        if (/^(NAME|EMAIL|PHONE|ADDRESS|CONTACT)/i.test(line)) {
+            foundName = true;
+            continue;
+        }
+
+        // Look for profile indicators
+        if (/^(areas?\s+of\s+expertise|professional\s+background|career\s+summary|professional\s+summary)/i.test(line)) {
+            inProfile = true;
+            continue;
+        }
+
+        // Stop at major section headers
+        if (/^(EDUCATION|PROFESSIONAL\s+EXPERIENCE|WORK\s+EXPERIENCE|EMPLOYMENT|QUALIFICATIONS|PUBLICATIONS)/i.test(line)) {
+            break;
+        }
+
+        // Collect profile content
+        if ((foundName || inProfile) && line.length > 30) {
+            profileContent.push(line);
+        }
+
+        // Stop after collecting substantial content
+        if (profileContent.join(' ').length > 500) {
+            break;
+        }
+    }
+
+    if (profileContent.length > 0) {
+        return profileContent.join('\n').trim();
+    }
+
+    return null;
 }
 
 module.exports = { processCv, splitExperienceWithPatternRecognition }; 

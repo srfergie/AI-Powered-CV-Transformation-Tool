@@ -1,7 +1,32 @@
 // prompts/extractPrompts.js
 
 function getProfilePrompt(textChunk) {
-  return `Analyze the following text, which is the 'Profile' section of a CV. Extract the content verbatim. Respond with ONLY a JSON object: {"profile": "..."}. Text: """${textChunk}"""`;
+  return `From the CV profile section below, extract the complete professional profile/summary. This may include:
+- Areas of expertise
+- Years of experience
+- Key skills and competencies
+- Professional background
+- Personal attributes
+- Country experience summary
+
+IMPORTANT: 
+- Extract ALL content that forms the professional profile
+- Preserve the original structure and formatting
+- Include ALL expertise areas, skills, and experience summaries
+- If the profile is in multiple paragraphs, include all of them
+
+Respond with ONLY a valid JSON object in this exact format:
+{
+  "profile": "Complete profile text here preserving all content and structure"
+}
+
+Make sure to:
+- Properly escape any quotes in the text using \\"
+- Remove any trailing commas
+- Ensure valid JSON syntax
+
+Profile Text:
+"""${textChunk}"""`;
 }
 
 function getPersonalDetailsPrompt(textChunk) {
