@@ -513,7 +513,7 @@ function consolidateSections(parsedSectionsResult) {
     console.log("⚙️ Consolidating parsed sections into standard categories...");
     const consolidated = {
         profile: '', personal_details: '', country_experience: '', qualifications: '',
-        publications: '', experience: '', skills: '', additional_info: ''
+        publications: '', experience: '', skills: '', employment: '', additional_info: ''
     };
 
     for (const [sectionName, content] of Object.entries(sectionsToConsolidate)) {
@@ -683,6 +683,84 @@ function splitExperienceWithPatternRecognition(experienceText) {
 }
 
 /**
+ * EMPLOYMENT RECORD SPLITTING: For structured employment sections
+ */
+function splitEmploymentRecord(employmentText) {
+    console.log("⚙️ Enhanced employment record splitting...");
+    console.log(`📝 Processing employment text: ${employmentText.length} characters`);
+
+    if (!employmentText || employmentText.trim().length === 0) {
+        console.log("⚠️ No employment text to split.");
+        return [];
+    }
+
+    // Employment records typically use structured format with "From-To:", "Employer:", "Position Held:", etc.
+    const employmentPatterns = [
+        // "From-To:" or "From–To:" patterns
+        /(?:^|\n)\s*From[–-]?To:\s*/gmi,
+        // Date patterns in employment records
+        /(?:^|\n)\s*(?:From[–-]To:\s*)?(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s*\d{4}\s*[–-]\s*(?:present|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s*\d{4})/gmi,
+        // "Employer:" patterns
+        /(?:^|\n)\s*Employer:\s*/gmi,
+        // "Contracting Agency:" patterns
+        /(?:^|\n)\s*Contracting\s+Agency:\s*/gmi
+    ];
+
+    let bestSplits = [];
+    let maxCount = 0;
+
+    // Test employment patterns
+    for (const pattern of employmentPatterns) {
+        const matches = [...employmentText.matchAll(pattern)];
+        if (matches.length > 1) { // Need at least 2 matches to create splits
+            console.log(`🎯 Found ${matches.length} matches with employment pattern`);
+
+            // Split on this pattern
+            const splitPattern = new RegExp(`(?=${pattern.source})`, 'gmi');
+            const splits = employmentText.split(splitPattern)
+                .map(entry => entry.trim())
+                .filter(entry => entry.length > 100); // Employment entries should be substantial
+
+            if (splits.length > maxCount) {
+                maxCount = splits.length;
+                bestSplits = splits;
+            }
+        }
+    }
+
+    // Fallback: if no structured patterns found, try paragraph breaks
+    if (maxCount < 2) {
+        console.log("🔄 Employment patterns didn't work, trying paragraph breaks...");
+
+        const paragraphSplits = employmentText
+            .split(/\n\s*\n\s*\n/) // Look for larger breaks between employment entries
+            .map(entry => entry.trim())
+            .filter(entry => entry.length > 150);
+
+        if (paragraphSplits.length > maxCount) {
+            maxCount = paragraphSplits.length;
+            bestSplits = paragraphSplits;
+        }
+    }
+
+    // Final fallback: return whole text as one entry
+    if (bestSplits.length === 0 && employmentText.trim().length > 100) {
+        console.log("⚠️ All employment splitting strategies failed, returning entire text as single entry");
+        bestSplits = [employmentText.trim()];
+    }
+
+    console.log(`✅ Split employment into ${bestSplits.length} individual entries using best strategy.`);
+
+    // Log preview of first few entries
+    bestSplits.slice(0, 3).forEach((entry, index) => {
+        const preview = entry.substring(0, 150).replace(/\n/g, ' ');
+        console.log(`   Employment Entry ${index + 1}: ${preview}... (${entry.length} chars)`);
+    });
+
+    return bestSplits;
+}
+
+/**
  * MAIN PROCESSING FUNCTION: The Orchestrator
  */
 async function processCv(filePath, progressCallback = null, originalFilename = null) {
@@ -728,8 +806,9 @@ async function processCv(filePath, progressCallback = null, originalFilename = n
         if (progressCallback) progressCallback(25, 'Sections consolidated...');
 
         const experienceEntries = splitExperienceWithPatternRecognition(consolidatedSections.experience);
+        const employmentEntries = splitEmploymentRecord(consolidatedSections.employment);
 
-        if (progressCallback) progressCallback(30, 'Experience entries split, extracting details...');
+        if (progressCallback) progressCallback(30, 'Experience and employment entries split, extracting details...');
 
         // Targeted extraction for specific missing pieces if necessary
         if (!consolidatedSections.country_experience && consolidatedSections.profile) {
@@ -737,7 +816,7 @@ async function processCv(filePath, progressCallback = null, originalFilename = n
             consolidatedSections.country_experience = await extractCountriesFromText(consolidatedSections.profile); // from llmService.js
         }
 
-        const structuredData = await extractStructuredDataFromSegments(consolidatedSections, experienceEntries, progressCallback);
+        const structuredData = await extractStructuredDataFromSegments(consolidatedSections, experienceEntries, progressCallback, employmentEntries);
 
         console.log('🎉 CV processing completed successfully!');
         return structuredData;
