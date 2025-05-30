@@ -193,12 +193,148 @@ function parseCvWithHeuristics(text) {
 }
 
 /**
- * ENHANCED SECTION CONSOLIDATION: Handles wider range of section variations
+ * COMPREHENSIVE SECTION DICTIONARIES: Extensive employment and section terms
+ */
+const SECTION_DICTIONARIES = {
+    // Employment/Experience terms - comprehensive list
+    experience: [
+        'EMPLOYMENT', 'Employment', 'employment',
+        'EMPLOYMENT RECORD', 'Employment record', 'employment record',
+        'EMPLOYMENT HISTORY', 'Employment History', 'employment history',
+        'PROFESSIONAL EXPERIENCE', 'Professional Experience', 'professional experience',
+        'WORK EXPERIENCE', 'Work Experience', 'work experience',
+        'EXPERIENCE', 'Experience', 'experience',
+        'CAREER HISTORY', 'Career History', 'career history',
+        'WORK HISTORY', 'Work History', 'work history',
+        'HIGHLIGHTED EXPERIENCE', 'Highlighted experience', 'highlighted experience',
+        'PROFESSIONAL BACKGROUND', 'Professional Background', 'professional background',
+        'CAREER SUMMARY', 'Career Summary', 'career summary',
+        'WORK SUMMARY', 'Work Summary', 'work summary',
+        'PROFESSIONAL SUMMARY', 'Professional Summary', 'professional summary',
+        'RELEVANT EXPERIENCE', 'Relevant Experience', 'relevant experience',
+        'PREVIOUS EXPERIENCE', 'Previous Experience', 'previous experience',
+        'JOB EXPERIENCE', 'Job Experience', 'job experience',
+        'OCCUPATIONAL EXPERIENCE', 'Occupational Experience', 'occupational experience',
+        'PROFESSIONAL ROLES', 'Professional Roles', 'professional roles',
+        'POSITIONS HELD', 'Positions Held', 'positions held',
+        'CAREER PROGRESSION', 'Career Progression', 'career progression'
+    ],
+
+    // Profile/Summary terms
+    profile: [
+        'PROFILE', 'Profile', 'profile',
+        'OVERVIEW', 'Overview', 'overview',
+        'SUMMARY', 'Summary', 'summary',
+        'PERSONAL STATEMENT', 'Personal Statement', 'personal statement',
+        'CAREER OBJECTIVE', 'Career Objective', 'career objective',
+        'SUMMARY OF QUALIFICATIONS', 'Summary of Qualifications', 'summary of qualifications',
+        'EXECUTIVE SUMMARY', 'Executive Summary', 'executive summary',
+        'PROFESSIONAL PROFILE', 'Professional Profile', 'professional profile',
+        'PERSONAL PROFILE', 'Personal Profile', 'personal profile',
+        'ABOUT ME', 'About Me', 'about me',
+        'INTRODUCTION', 'Introduction', 'introduction'
+    ],
+
+    // Education/Qualifications terms
+    qualifications: [
+        'QUALIFICATIONS', 'Qualifications', 'qualifications',
+        'EDUCATION', 'Education', 'education',
+        'ACADEMIC BACKGROUND', 'Academic Background', 'academic background',
+        'EDUCATIONAL BACKGROUND', 'Educational Background', 'educational background',
+        'ACADEMIC QUALIFICATIONS', 'Academic Qualifications', 'academic qualifications',
+        'EDUCATIONAL QUALIFICATIONS', 'Educational Qualifications', 'educational qualifications',
+        'ACADEMIC HISTORY', 'Academic History', 'academic history',
+        'EDUCATIONAL HISTORY', 'Educational History', 'educational history',
+        'DEGREES', 'Degrees', 'degrees',
+        'CERTIFICATIONS', 'Certifications', 'certifications',
+        'CREDENTIALS', 'Credentials', 'credentials',
+        'TRAINING', 'Training', 'training',
+        'AFFILIATIONS', 'Affiliations', 'affiliations',
+        'COMMUNITY ACTIVITIES', 'Community Activities', 'community activities',
+        'MEMBERSHIPS', 'Memberships', 'memberships'
+    ],
+
+    // Publications/Research terms
+    publications: [
+        'PUBLICATIONS', 'Publications', 'publications',
+        'RESEARCH', 'Research', 'research',
+        'RESEARCH PUBLICATIONS', 'Research Publications', 'research publications',
+        'JOURNAL ARTICLES', 'Journal Articles', 'journal articles',
+        'CONFERENCE PAPERS', 'Conference Papers', 'conference papers',
+        'ACADEMIC PUBLICATIONS', 'Academic Publications', 'academic publications',
+        'SCHOLARLY WORK', 'Scholarly Work', 'scholarly work',
+        'PAPERS', 'Papers', 'papers',
+        'ARTICLES', 'Articles', 'articles',
+        'BOOKS', 'Books', 'books',
+        'CHAPTERS', 'Chapters', 'chapters',
+        'PRESENTATIONS', 'Presentations', 'presentations'
+    ],
+
+    // Skills terms
+    skills: [
+        'SKILLS', 'Skills', 'skills',
+        'KEY SKILLS', 'Key Skills', 'key skills',
+        'KEY SKILLS AND CONTRIBUTIONS', 'Key Skills AND CONTRIBUTIONS', 'key skills and contributions',
+        'TECHNICAL SKILLS', 'Technical Skills', 'technical skills',
+        'CORE COMPETENCIES', 'Core Competencies', 'core competencies',
+        'COMPETENCIES', 'Competencies', 'competencies',
+        'EXPERTISE', 'Expertise', 'expertise',
+        'AREAS OF EXPERTISE', 'Areas of Expertise', 'areas of expertise',
+        'CORE SKILLS', 'Core Skills', 'core skills',
+        'PROFESSIONAL SKILLS', 'Professional Skills', 'professional skills',
+        'SPECIALIZED SKILLS', 'Specialized Skills', 'specialized skills',
+        'CAPABILITIES', 'Capabilities', 'capabilities',
+        'STRENGTHS', 'Strengths', 'strengths'
+    ],
+
+    // Personal details terms
+    personal_details: [
+        'NATIONALITY', 'Nationality', 'nationality',
+        'NATIONALITY & LANGUAGES', 'Nationality & Languages', 'nationality & languages',
+        'PERSONAL DETAILS', 'Personal Details', 'personal details',
+        'PERSONAL INFORMATION', 'Personal Information', 'personal information',
+        'CONTACT DETAILS', 'Contact Details', 'contact details',
+        'CONTACT INFORMATION', 'Contact Information', 'contact information',
+        'LANGUAGES', 'Languages', 'languages',
+        'LANGUAGE SKILLS', 'Language Skills', 'language skills',
+        'LINGUISTIC SKILLS', 'Linguistic Skills', 'linguistic skills'
+    ],
+
+    // Country experience terms
+    country_experience: [
+        'COUNTRY WORK EXPERIENCE', 'Country work experience', 'country work experience',
+        'COUNTRY EXPERIENCE', 'Country Experience', 'country experience',
+        'INTERNATIONAL EXPERIENCE', 'International Experience', 'international experience',
+        'GLOBAL EXPERIENCE', 'Global Experience', 'global experience',
+        'OVERSEAS EXPERIENCE', 'Overseas Experience', 'overseas experience',
+        'CROSS-CULTURAL EXPERIENCE', 'Cross-Cultural Experience', 'cross-cultural experience',
+        'MULTICULTURAL EXPERIENCE', 'Multicultural Experience', 'multicultural experience',
+        'REGIONAL EXPERIENCE', 'Regional Experience', 'regional experience'
+    ]
+};
+
+/**
+ * Smart section mapping function using comprehensive dictionaries
+ */
+function mapSectionToCategory(sectionName) {
+    for (const [category, terms] of Object.entries(SECTION_DICTIONARIES)) {
+        for (const term of terms) {
+            if (sectionName.toUpperCase().includes(term.toUpperCase()) ||
+                term.toUpperCase().includes(sectionName.toUpperCase())) {
+                return category;
+            }
+        }
+    }
+    return null; // No match found
+}
+
+/**
+ * ENHANCED SECTION CONSOLIDATION: Dictionary-based mapping with comprehensive employment terms
  */
 function consolidateSections(parsedSections) {
-    console.log("⚙️ Consolidating sections with adaptive mapping...");
+    console.log("⚙️ Consolidating sections with adaptive dictionary-based mapping...");
 
-    // Define comprehensive section mappings
+    // Initialize consolidated sections
     const consolidated = {
         profile: '',
         personal_details: '',
@@ -209,40 +345,49 @@ function consolidateSections(parsedSections) {
         skills: ''
     };
 
-    // --- ENHANCEMENT 2: Consolidate from a wider range of sections ---
-    consolidated.profile = parsedSections['PROFILE'] || parsedSections['Profile'] || parsedSections['Overview'] || parsedSections['SUMMARY'] || parsedSections['Summary'] || parsedSections['PERSONAL STATEMENT'] || parsedSections['CAREER OBJECTIVE'] || parsedSections['SUMMARY OF QUALIFICATIONS'] || '';
+    // Map each found section to appropriate category using dictionaries
+    const mappedSections = {
+        profile: [],
+        personal_details: [],
+        country_experience: [],
+        qualifications: [],
+        publications: [],
+        experience: [],
+        skills: []
+    };
 
-    consolidated.qualifications = parsedSections['QUALIFICATIONS'] || parsedSections['Qualifications'] || parsedSections['EDUCATION'] || parsedSections['Education'] || parsedSections['ACADEMIC BACKGROUND'] || parsedSections['Academic Background'] || parsedSections['Affiliations'] || parsedSections['Community Activities'] || '';
+    console.log("📋 Mapping found sections to categories:");
+    for (const [sectionName, content] of Object.entries(parsedSections)) {
+        const category = mapSectionToCategory(sectionName);
+        if (category) {
+            console.log(`   "${sectionName}" → ${category} (${content.length} chars)`);
+            mappedSections[category].push(content);
+        } else {
+            console.log(`   "${sectionName}" → UNMAPPED (${content.length} chars)`);
 
-    consolidated.publications = parsedSections['PUBLICATIONS'] || parsedSections['Publications'] || parsedSections['RESEARCH'] || parsedSections['Research'] || parsedSections['RESEARCH PUBLICATIONS'] || parsedSections['JOURNAL ARTICLES'] || parsedSections['CONFERENCE PAPERS'] || '';
+            // Fallback: try to categorize by keyword presence in content
+            const contentLower = content.toLowerCase();
+            if (contentLower.includes('experience') || contentLower.includes('employment') ||
+                contentLower.includes('position') || contentLower.includes('role')) {
+                console.log(`   → FALLBACK: Assigning to experience based on content`);
+                mappedSections.experience.push(content);
+            } else if (contentLower.includes('education') || contentLower.includes('degree') ||
+                contentLower.includes('university') || contentLower.includes('qualification')) {
+                console.log(`   → FALLBACK: Assigning to qualifications based on content`);
+                mappedSections.qualifications.push(content);
+            } else if (contentLower.includes('skill') || contentLower.includes('competenc')) {
+                console.log(`   → FALLBACK: Assigning to skills based on content`);
+                mappedSections.skills.push(content);
+            }
+        }
+    }
 
-    consolidated.skills = parsedSections['Key Skills AND CONTRIBUTIONS'] || parsedSections['SKILLS'] || parsedSections['Skills'] || parsedSections['TECHNICAL SKILLS'] || parsedSections['Technical Skills'] || '';
+    // Consolidate mapped sections
+    for (const [category, contentArray] of Object.entries(mappedSections)) {
+        consolidated[category] = contentArray.filter(Boolean).join('\n\n');
+    }
 
-    consolidated.personal_details = parsedSections['NATIONALITY & LANGUAGES'] || parsedSections['Nationality & Languages'] || parsedSections['NATIONALITY'] || parsedSections['PERSONAL DETAILS'] || parsedSections['Languages'] || '';
-
-    consolidated.country_experience = parsedSections['COUNTRY WORK EXPERIENCE'] || parsedSections['Country work experience'] || parsedSections['INTERNATIONAL EXPERIENCE'] || parsedSections['International Experience'] || '';
-
-    // Combine all possible experience-related sections
-    const experienceSources = [
-        parsedSections['HIGHLIGHTED EXPERIENCE'],
-        parsedSections['Highlighted experience'],
-        parsedSections['EXPERIENCE'],
-        parsedSections['Experience'],
-        parsedSections['PROFESSIONAL EXPERIENCE'],
-        parsedSections['Professional Experience'],
-        parsedSections['WORK EXPERIENCE'],
-        parsedSections['Work Experience'],
-        parsedSections['EMPLOYMENT'],
-        parsedSections['Employment'],
-        parsedSections['CAREER HISTORY'],
-        parsedSections['Career History'],
-        parsedSections['WORK HISTORY'],
-        parsedSections['Work History'],
-        parsedSections['Employment record']
-    ];
-    consolidated.experience = experienceSources.filter(Boolean).join('\n\n');
-
-    console.log("✅ Adaptive consolidation complete. Final sections:");
+    console.log("✅ Dictionary-based consolidation complete. Final sections:");
     Object.entries(consolidated).forEach(([key, value]) => {
         console.log(`- ${key}: ${value.length} characters`);
     });
