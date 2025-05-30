@@ -1,7 +1,7 @@
 const docx = require('docx');
 const {
     Document, Packer, Paragraph, TextRun, Table, TableCell, TableRow,
-    WidthType, VerticalAlign, AlignmentType, BorderStyle
+    WidthType, VerticalAlign, AlignmentType, BorderStyle, Header, Footer, PageNumber
 } = docx;
 
 const IOD_PARC_BLUE = "2c5aa0";
@@ -51,7 +51,7 @@ function createExperienceParagraphs(exp) {
             const textContent = isBullet ? trimmedLine.substring(1).trim() : trimmedLine;
 
             return new Paragraph({
-                children: [new TextRun({ text: textContent, font: FONT_FAMILY, size: 22 })],
+                children: [new TextRun({ text: textContent, font: FONT_FAMILY, size: 32, color: "FFFFFF" })],
                 alignment: AlignmentType.JUSTIFIED,
                 bullet: isBullet ? { level: 0 } : undefined,
                 spacing: { after: 80 }
@@ -61,10 +61,10 @@ function createExperienceParagraphs(exp) {
     return [
         new Paragraph({
             children: [
-                new TextRun({ text: `${exp.dates}, `, font: FONT_FAMILY, size: 22, bold: true }),
-                new TextRun({ text: `${exp.role} | `, font: FONT_FAMILY, size: 22, bold: true }),
-                new TextRun({ text: `${exp.client} | `, font: FONT_FAMILY, size: 22, bold: true, italics: true }),
-                new TextRun({ text: exp.location, font: FONT_FAMILY, size: 22 }),
+                new TextRun({ text: `${exp.dates}, `, font: FONT_FAMILY, size: 32, bold: true, color: "FFFFFF" }),
+                new TextRun({ text: `${exp.role} | `, font: FONT_FAMILY, size: 32, bold: true, color: "FFFFFF" }),
+                new TextRun({ text: `${exp.client} | `, font: FONT_FAMILY, size: 32, bold: true, italics: true, color: "FFFFFF" }),
+                new TextRun({ text: exp.location, font: FONT_FAMILY, size: 32, color: "FFFFFF" }),
             ],
             spacing: { after: 120 }
         }),
@@ -82,12 +82,30 @@ async function generateIodParcDocx(data) {
         qualificationsCount: data.qualifications?.length || 0
     });
 
+    const documentChildren = [];
+
+    // Add CV Applicant Name at the top of the first page
+    const applicantName = data.personalDetails?.name || data.name || "CV Applicant";
+    documentChildren.push(
+        new Paragraph({
+            children: [new TextRun({
+                text: applicantName,
+                font: FONT_FAMILY,
+                size: 48,
+                color: IOD_PARC_BLUE,
+                bold: true
+            })],
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 400 }
+        })
+    );
+
     const allRows = [];
 
     // --- Profile Section ---
     if (data.profile) {
         const profileParas = (data.profile || "").split('\n').filter(p => p.trim() !== "").map(p => new Paragraph({
-            children: [new TextRun({ text: p, font: FONT_FAMILY, size: 22 })],
+            children: [new TextRun({ text: p, font: FONT_FAMILY, size: 32, color: "FFFFFF" })],
             alignment: AlignmentType.JUSTIFIED,
             spacing: { after: 120 }
         }));
@@ -98,11 +116,11 @@ async function generateIodParcDocx(data) {
     const languageString = (data.languages || []).map(l => `${l.language} (${l.proficiency})`).join(', ');
     const nationalityParas = [
         new Paragraph({
-            children: [new TextRun({ text: data.nationality || 'Not specified', font: FONT_FAMILY, size: 22 })],
+            children: [new TextRun({ text: data.nationality || 'Not specified', font: FONT_FAMILY, size: 32, color: "FFFFFF" })],
             spacing: { after: 120 }
         }),
         new Paragraph({
-            children: [new TextRun({ text: languageString || 'Not specified', font: FONT_FAMILY, size: 22 })],
+            children: [new TextRun({ text: languageString || 'Not specified', font: FONT_FAMILY, size: 32, color: "FFFFFF" })],
             spacing: { after: 120 }
         })
     ];
@@ -112,8 +130,8 @@ async function generateIodParcDocx(data) {
     const qualContent = (data.qualifications || []).map(q =>
         new Paragraph({
             children: [
-                new TextRun({ text: `${q.year}, ${q.degree}, ${q.institution}`, font: FONT_FAMILY, size: 22, bold: true }),
-                new TextRun({ text: `\n${q.details || ''}`, font: FONT_FAMILY, size: 22, italics: true }),
+                new TextRun({ text: `${q.year}, ${q.degree}, ${q.institution}`, font: FONT_FAMILY, size: 32, bold: true, color: "FFFFFF" }),
+                new TextRun({ text: `\n${q.details || ''}`, font: FONT_FAMILY, size: 32, italics: true, color: "FFFFFF" }),
             ],
             spacing: { after: 120 }
         })
@@ -121,7 +139,7 @@ async function generateIodParcDocx(data) {
 
     if (qualContent.length === 0) {
         qualContent.push(new Paragraph({
-            children: [new TextRun({ text: 'No qualifications found', font: FONT_FAMILY, size: 22 })]
+            children: [new TextRun({ text: 'No qualifications found', font: FONT_FAMILY, size: 32, color: "FFFFFF" })]
         }));
     }
 
@@ -134,7 +152,7 @@ async function generateIodParcDocx(data) {
 
     // --- Country work experience ---
     const countryExpPara = new Paragraph({
-        children: [new TextRun({ text: (data.countryWorkExperience || []).join(', ') || 'Not specified', font: FONT_FAMILY, size: 22 })],
+        children: [new TextRun({ text: (data.countryWorkExperience || []).join(', ') || 'Not specified', font: FONT_FAMILY, size: 32, color: "FFFFFF" })],
         spacing: { after: 120 }
     });
     allRows.push(new TableRow({ children: [createHeaderCell("Country work experience"), createContentCell([countryExpPara])] }));
@@ -167,7 +185,7 @@ async function generateIodParcDocx(data) {
                 createHeaderCell("Experience"),
                 createContentCell([
                     new Paragraph({
-                        children: [new TextRun({ text: 'No experience entries found', font: FONT_FAMILY, size: 22 })]
+                        children: [new TextRun({ text: 'No experience entries found', font: FONT_FAMILY, size: 32, color: "FFFFFF" })]
                     })
                 ])
             ],
@@ -177,14 +195,14 @@ async function generateIodParcDocx(data) {
     // --- Publications ---
     const pubContent = (data.publications || []).map(p =>
         new Paragraph({
-            children: [new TextRun({ text: p.citation || 'Citation not available', font: FONT_FAMILY, size: 22 })],
+            children: [new TextRun({ text: p.citation || 'Citation not available', font: FONT_FAMILY, size: 32, color: "FFFFFF" })],
             spacing: { after: 120 }
         })
     );
 
     if (pubContent.length === 0) {
         pubContent.push(new Paragraph({
-            children: [new TextRun({ text: 'No publications found', font: FONT_FAMILY, size: 22 })]
+            children: [new TextRun({ text: 'No publications found', font: FONT_FAMILY, size: 32, color: "FFFFFF" })]
         }));
     }
 
@@ -197,13 +215,30 @@ async function generateIodParcDocx(data) {
 
     console.log(`Generated ${allRows.length} table rows`);
 
+    // Add the main content table to document children
+    documentChildren.push(
+        new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            columnWidths: [2500, 7500],
+            rows: allRows,
+            borders: {
+                top: { style: BorderStyle.NONE },
+                bottom: { style: BorderStyle.NONE },
+                left: { style: BorderStyle.NONE },
+                right: { style: BorderStyle.NONE },
+                insideHorizontal: { style: BorderStyle.NONE },
+                insideVertical: { style: BorderStyle.NONE }
+            },
+        })
+    );
+
     const doc = new Document({
         creator: "BD Assistant",
         styles: {
             paragraphStyles: [{
                 id: "Normal",
                 name: "Normal",
-                run: { font: FONT_FAMILY, size: 22, color: "000000" },
+                run: { font: FONT_FAMILY, size: 32, color: "FFFFFF" },
                 paragraph: {
                     alignment: AlignmentType.JUSTIFIED,
                     spacing: { after: 80 }
@@ -211,47 +246,27 @@ async function generateIodParcDocx(data) {
             }],
         },
         sections: [{
-            headers: {
-                default: new docx.Header({
-                    children: [
-                        new Paragraph({
-                            children: [new TextRun({
-                                text: (data.personalDetails?.name || data.name || "CV Applicant"),
-                                font: FONT_FAMILY,
-                                size: 48,
-                                color: IOD_PARC_BLUE
-                            })],
-                            alignment: AlignmentType.CENTER
-                        }),
-                    ],
-                }),
-            },
+            // Remove the header - no name in header anymore
             footers: {
-                default: new docx.Footer({
+                default: new Footer({
                     children: [
                         new Paragraph({
                             alignment: AlignmentType.RIGHT,
-                            children: [new TextRun({ children: [docx.PageNumber.CURRENT, " | ", docx.PageNumber.TOTAL_PAGES], font: FONT_FAMILY, size: 18 })],
+                            children: [new TextRun({
+                                text: "Page ",
+                                font: FONT_FAMILY,
+                                size: 18
+                            }), PageNumber.CURRENT, new TextRun({
+                                text: " of ",
+                                font: FONT_FAMILY,
+                                size: 18
+                            }), PageNumber.TOTAL_PAGES],
                         }),
                     ],
                 }),
             },
-            properties: { page: { margin: { top: 1000, right: 720, bottom: 720, left: 720 } } },
-            children: [
-                new Table({
-                    width: { size: 100, type: WidthType.PERCENTAGE },
-                    columnWidths: [2500, 7500],
-                    rows: allRows,
-                    borders: {
-                        top: { style: BorderStyle.NONE },
-                        bottom: { style: BorderStyle.NONE },
-                        left: { style: BorderStyle.NONE },
-                        right: { style: BorderStyle.NONE },
-                        insideHorizontal: { style: BorderStyle.NONE },
-                        insideVertical: { style: BorderStyle.NONE }
-                    },
-                }),
-            ],
+            properties: { page: { margin: { top: 720, right: 720, bottom: 720, left: 720 } } },
+            children: documentChildren,
         }],
     });
 

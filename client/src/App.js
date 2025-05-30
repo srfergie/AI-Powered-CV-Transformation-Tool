@@ -319,503 +319,258 @@ function App() {
   };
 
   const renderCVAssistant = () => (
-    <div className="split-layout">
-      <div className="chat-panel">
+    <div className="modern-layout">
+      <div className="central-panel">
         <div className="cv-assistant-container">
-          <div className="upload-header">
-            {/* Normal upload section - show when no file selected OR when file selected but not uploaded */}
-            {!resumeData && !isUploading && (
-              <div className="upload-section">
-                {!selectedFile && (
-                  <div className="upload-guidance">
-                    <h3>🚀 Welcome to BD Assistant</h3>
-                    <p>Transform your CV with cutting-edge AI technology in 3 simple steps:</p>
-                    <div className="steps-guide">
-                      <div className="step">
-                        <span className="step-number">1</span>
-                        <span className="step-text">Upload your CV (PDF, Word, or TXT)</span>
-                      </div>
-                      <div className="step">
-                        <span className="step-number">2</span>
-                        <span className="step-text">AI processes and enhances your content</span>
-                      </div>
-                      <div className="step">
-                        <span className="step-number">3</span>
-                        <span className="step-text">Chat for improvements & download</span>
-                      </div>
+
+          {/* Welcome Section - Only show when no file and not processing */}
+          {!resumeData && !isUploading && !selectedFile && (
+            <div className="welcome-section">
+              <div className="welcome-header">
+                <h2>AI-Powered CV Transformation</h2>
+                <p className="welcome-subtitle">
+                  Transform your CV into IOD PARC format using advanced AI processing
+                </p>
+              </div>
+
+              <div className="process-overview">
+                <div className="process-step">
+                  <div className="step-number">1</div>
+                  <div className="step-content">
+                    <h4>Upload Document</h4>
+                    <p>Select your CV file (Word format supported)</p>
+                  </div>
+                </div>
+                <div className="process-step">
+                  <div className="step-number">2</div>
+                  <div className="step-content">
+                    <h4>AI Processing</h4>
+                    <p>Advanced extraction and content analysis</p>
+                  </div>
+                </div>
+                <div className="process-step">
+                  <div className="step-number">3</div>
+                  <div className="step-content">
+                    <h4>Download Result</h4>
+                    <p>Get your professionally formatted CV</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Upload Area - Central and Prominent */}
+          {!resumeData && !isUploading && (
+            <div className="upload-section-modern">
+              <div
+                className={`upload-area-modern ${isDragActive ? 'drag-active' : ''} ${selectedFile ? 'has-file' : ''}`}
+                onDragOver={handleDrag}
+                onDragEnter={handleDrag}
+                onDragLeave={handleDrag}
+                onDrop={handleDrop}
+              >
+                {!selectedFile ? (
+                  <div className="upload-content">
+                    <div className="upload-icon-modern">
+                      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14,2 14,8 20,8" />
+                        <line x1="16" y1="13" x2="8" y2="13" />
+                        <line x1="16" y1="17" x2="8" y2="17" />
+                        <polyline points="10,9 9,9 8,9" />
+                      </svg>
                     </div>
+                    <h3 className="upload-title-modern">Select your CV file</h3>
+                    <p className="upload-subtitle-modern">
+                      Drag and drop your file here, or <button className="browse-button" onClick={() => document.getElementById('fileInput').click()}>browse files</button>
+                    </p>
+                    <div className="upload-formats-modern">
+                      Supported: Word Documents (.docx) • Maximum size: 10MB
+                    </div>
+                    <input
+                      type="file"
+                      id="fileInput"
+                      style={{ display: 'none' }}
+                      onChange={handleFileSelect}
+                      accept=".docx"
+                    />
+                  </div>
+                ) : (
+                  <div className="file-selected-modern">
+                    <div className="file-info-modern">
+                      <div className="file-icon-modern">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                          <polyline points="14,2 14,8 20,8" />
+                        </svg>
+                      </div>
+                      <div className="file-details-modern">
+                        <div className="file-name-modern">{selectedFile.name}</div>
+                        <div className="file-size-modern">
+                          {(selectedFile.size / 1024 / 1024).toFixed(2)} MB • Word Document
+                        </div>
+                      </div>
+                      <button
+                        className="remove-file-modern"
+                        onClick={() => setSelectedFile(null)}
+                        aria-label="Remove file"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    <button
+                      className="process-button-modern"
+                      onClick={uploadAndProcess}
+                      disabled={isUploading}
+                    >
+                      {isUploading ? 'Processing...' : 'Transform CV'}
+                    </button>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
 
-                <div
-                  className={`upload-area ${isDragActive ? 'drag-active' : ''} ${selectedFile ? 'has-file' : ''}`}
-                  onDragOver={handleDrag}
-                  onDragEnter={handleDrag}
-                  onDragLeave={handleDrag}
-                  onDrop={handleDrop}
-                >
-                  {!selectedFile ? (
-                    <>
-                      <div className="upload-icon">📄</div>
-                      <h3 className="upload-title">Upload your CV</h3>
-                      <p className="upload-subtitle">
-                        Drop your CV here or <span className="browse-link" onClick={() => document.getElementById('fileInput').click()}>browse files</span>
-                      </p>
-                      <p className="upload-formats">Supports: Word (.docx) • Max 10MB</p>
-                      <input
-                        type="file"
-                        id="fileInput"
-                        style={{ display: 'none' }}
-                        onChange={handleFileSelect}
-                        accept=".docx"
-                      />
-                    </>
-                  ) : (
-                    <div className="file-info">
-                      <div className="file-selected">
-                        <div className="file-icon">{getFileTypeDisplay(selectedFile)}</div>
-                        <div className="file-details">
-                          <div className="file-name">{selectedFile.name}</div>
-                          <div className="file-size">
-                            {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                          </div>
-                        </div>
-                        <button className="remove-file" onClick={() => setSelectedFile(null)}>
-                          ✕
-                        </button>
-                      </div>
+          {/* Processing Section - Clean and Clear */}
+          {isUploading && (
+            <div className="processing-section-modern">
+              <div className="processing-header-modern">
+                <h3>Processing Your CV</h3>
+                <p>Please wait while we analyze and transform your document</p>
+              </div>
 
-                      <button
-                        className="upload-btn"
-                        onClick={uploadAndProcess}
-                        disabled={isUploading}
-                      >
-                        {isUploading ? 'Processing...' : '🚀 Transform My CV'}
-                      </button>
+              <div className="processing-stages-modern">
+                <div className={`stage-modern ${processingStage === 'uploading' || processingStage === 'parsing' ? 'active' : (processingStage === 'analyzing' || processingStage === 'formatting' || processingStage === 'finalizing' || processingStage === 'completed') ? 'completed' : ''}`}>
+                  <div className="stage-indicator"></div>
+                  <div className="stage-content">
+                    <h4>Document Upload</h4>
+                    <p>Uploading and parsing document structure</p>
+                  </div>
+                </div>
+
+                <div className={`stage-modern ${processingStage === 'analyzing' ? 'active' : (processingStage === 'formatting' || processingStage === 'finalizing' || processingStage === 'completed') ? 'completed' : ''}`}>
+                  <div className="stage-indicator"></div>
+                  <div className="stage-content">
+                    <h4>AI Analysis</h4>
+                    <p>Extracting and analyzing content with AI</p>
+                  </div>
+                </div>
+
+                <div className={`stage-modern ${processingStage === 'formatting' || processingStage === 'finalizing' ? 'active' : processingStage === 'completed' ? 'completed' : ''}`}>
+                  <div className="stage-indicator"></div>
+                  <div className="stage-content">
+                    <h4>Document Formatting</h4>
+                    <p>Generating IOD PARC formatted document</p>
+                  </div>
+                </div>
+
+                <div className={`stage-modern ${processingStage === 'completed' ? 'completed' : ''}`}>
+                  <div className="stage-indicator"></div>
+                  <div className="stage-content">
+                    <h4>Complete</h4>
+                    <p>Document ready for download</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="progress-container-modern">
+                <div className="progress-bar-modern">
+                  <div className="progress-fill-modern" style={{ width: `${uploadProgress}%` }}></div>
+                </div>
+                <div className="progress-info-modern">
+                  <span className="progress-percentage-modern">{uploadProgress}%</span>
+                  <span className="progress-text-modern">{progressText || 'Initializing...'}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Error Section */}
+          {error && (
+            <div className="error-section-modern">
+              <div className="error-icon-modern">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="15" y1="9" x2="9" y2="15" />
+                  <line x1="9" y1="9" x2="15" y2="15" />
+                </svg>
+              </div>
+              <div className="error-content-modern">
+                <h4>Processing Error</h4>
+                <p>{error}</p>
+                <button className="retry-button-modern" onClick={() => { setError(''); setSelectedFile(null); }}>
+                  Try Again
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Success Section */}
+          {resumeData && !isUploading && (
+            <div className="success-section-modern">
+              <div className="success-header-modern">
+                <div className="success-icon-modern">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="20,6 9,17 4,12" />
+                  </svg>
+                </div>
+                <div className="success-content-modern">
+                  <h3>CV Transformation Complete</h3>
+                  <p>Your CV has been successfully processed and formatted according to IOD PARC standards.</p>
+                </div>
+              </div>
+
+              <div className="extracted-content-preview">
+                <h4>Extracted Content Summary</h4>
+                <div className="content-sections">
+                  {resumeData.experience && resumeData.experience.length > 0 && (
+                    <div className="content-section">
+                      <span className="section-label">Experience:</span>
+                      <span className="section-count">{resumeData.experience.length} entries extracted</span>
+                    </div>
+                  )}
+                  {resumeData.publications && resumeData.publications.length > 0 && (
+                    <div className="content-section">
+                      <span className="section-label">Publications:</span>
+                      <span className="section-count">{resumeData.publications.length} publications found</span>
+                    </div>
+                  )}
+                  {resumeData.qualifications && resumeData.qualifications.length > 0 && (
+                    <div className="content-section">
+                      <span className="section-label">Qualifications:</span>
+                      <span className="section-count">{resumeData.qualifications.length} qualifications extracted</span>
                     </div>
                   )}
                 </div>
               </div>
-            )}
 
-            {isUploading && (
-              <div className="progress-section">
-                <div className="processing-header">
-                  <h3>🔄 Processing Your CV</h3>
-                  <p>Please wait while we enhance your CV with AI...</p>
-                </div>
-
-                <div className="processing-stages">
-                  <div className={`stage ${processingStage === 'uploading' || processingStage === 'parsing' ? 'active' : (processingStage === 'analyzing' || processingStage === 'formatting' || processingStage === 'finalizing' || processingStage === 'completed') ? 'completed' : ''}`}>
-                    <div className="stage-icon">📤</div>
-                    <div className="stage-text">Upload & Parse</div>
-                  </div>
-                  <div className={`stage ${processingStage === 'analyzing' ? 'active' : (processingStage === 'formatting' || processingStage === 'finalizing' || processingStage === 'completed') ? 'completed' : ''}`}>
-                    <div className="stage-icon">🤖</div>
-                    <div className="stage-text">AI Analysis</div>
-                  </div>
-                  <div className={`stage ${processingStage === 'formatting' || processingStage === 'finalizing' ? 'active' : processingStage === 'completed' ? 'completed' : ''}`}>
-                    <div className="stage-icon">✨</div>
-                    <div className="stage-text">Format & Enhance</div>
-                  </div>
-                  <div className={`stage ${processingStage === 'completed' ? 'completed' : ''}`}>
-                    <div className="stage-icon">✅</div>
-                    <div className="stage-text">Ready!</div>
-                  </div>
-                </div>
-
-                <div className="progress-bar">
-                  <div className="progress-fill" style={{ width: `${uploadProgress}%` }}></div>
-                  <div className="progress-percentage">{uploadProgress}%</div>
-                </div>
-                <div className="progress-text">{progressText || 'Initializing...'}</div>
-
-                {/* Debug info - remove in production */}
-                <div style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
-                  Debug: isUploading={isUploading.toString()}, progress={uploadProgress}, stage={processingStage}
-                </div>
+              <div className="action-buttons-modern">
+                <button
+                  className="download-button-modern primary"
+                  onClick={downloadDocx}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7,10 12,15 17,10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  Download CV
+                </button>
+                <button
+                  className="download-button-modern secondary"
+                  onClick={resetUpload}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="23,4 23,10 17,10" />
+                    <path d="M20.49,15a9,9,0,1,1-2.12-9.36L23,10" />
+                  </svg>
+                  Process New CV
+                </button>
               </div>
-            )}
-
-            {error && (
-              <div className="error-message">
-                <span className="error-icon">⚠️</span>
-                <div className="error-content">
-                  <strong>Something went wrong</strong>
-                  <p>{error}</p>
-                  <button className="retry-btn" onClick={() => { setError(''); setSelectedFile(null); }}>
-                    🔄 Try Again
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {resumeData && !isUploading && (
-              <div className="success-section">
-                <div className="success-header">
-                  <div className="success-icon">🎉</div>
-                  <div className="success-content">
-                    <h3>CV Successfully Enhanced!</h3>
-                    <p>Your CV for <strong>{resumeData.personalInfo?.name || 'Unknown'}</strong> has been processed and is ready for improvements.</p>
-                  </div>
-                </div>
-
-                <div className="next-steps">
-                  <h4>What's Next?</h4>
-                  <div className="next-step-items">
-                    <div className="next-step">
-                      <span className="step-icon">💬</span>
-                      <span>Chat below to request improvements</span>
-                    </div>
-                    <div className="next-step">
-                      <span className="step-icon">👁️</span>
-                      <span>Review your enhanced CV on the right</span>
-                    </div>
-                    <div className="next-step">
-                      <span className="step-icon">📥</span>
-                      <span>Download when you're satisfied</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="action-buttons-compact">
-                  <button
-                    className="download-btn-small"
-                    onClick={downloadDocx}
-                  >
-                    📥 Download CV
-                  </button>
-                  <button
-                    className="reset-btn-small"
-                    onClick={resetUpload}
-                  >
-                    🔄 New CV
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="preview-panel">
-        <div className="preview-panel-header">
-          <h3>📄 Live Document Preview</h3>
-          {resumeData && (
-            <button
-              className="download-btn-small"
-              onClick={downloadDocx}
-            >
-              📥 Download
-            </button>
-          )}
-        </div>
-
-        <div className="preview-panel-content">
-          {!resumeData ? (
-            <div className="preview-placeholder">
-              <div className="placeholder-icon">📄</div>
-              <h4>CV Preview</h4>
-              <p>Upload and process a CV to see the enhanced version here. The preview updates in real-time as you chat with the AI assistant.</p>
-              <div className="preview-features">
-                <div className="feature">✨ Real-time updates</div>
-                <div className="feature">📋 Professional formatting</div>
-                <div className="feature">🎯 Optimised content</div>
-              </div>
-            </div>
-          ) : (
-            <div className="document-preview" style={{
-              fontFamily: 'Arial, sans-serif',
-              fontSize: '11pt',
-              lineHeight: '1.4',
-              backgroundColor: '#ffffff',
-              color: '#000000',
-              padding: '40px',
-              maxWidth: '210mm',
-              margin: '0 auto'
-            }}>
-              {/* Enhanced CV Indicator - Static */}
-              <div className="enhanced-indicator">
-                ✨ ENHANCED VERSION
-              </div>
-
-              {(() => {
-                // Use enhanced resume data for preview
-                const enhancedData = enhanceResumeForPreview(resumeData);
-
-                return (
-                  <div style={{ display: 'flex', gap: '30px' }}>
-                    {/* Left Sidebar */}
-                    <div style={{
-                      width: '160px',
-                      flexShrink: 0
-                    }}>
-                      {/* Name and Title at top */}
-                      <div style={{ marginBottom: '20px', textAlign: 'right' }}>
-                        <h1 style={{
-                          fontSize: '18pt',
-                          fontWeight: 'bold',
-                          margin: '0 0 8px 0',
-                          lineHeight: '1.2'
-                        }}>
-                          {enhancedData.personalInfo?.name || 'Ima Bishop'}
-                        </h1>
-                        <div style={{
-                          fontSize: '10pt',
-                          lineHeight: '1.3',
-                          marginBottom: '15px'
-                        }}>
-                          {enhancedData.personalInfo?.title || 'Senior Consultant | Migration and Forced Displacement Workstream | Chair of the Board of IOD PARC Employee-Owned Trust'}
-                        </div>
-                      </div>
-
-                      {/* Profile Section */}
-                      <div style={{ marginBottom: '25px' }}>
-                        <h3 style={{
-                          fontSize: '12pt',
-                          fontWeight: 'bold',
-                          margin: '0 0 8px 0',
-                          textAlign: 'left'
-                        }}>Profile</h3>
-                        <div style={{
-                          fontSize: '9pt',
-                          lineHeight: '1.3',
-                          textAlign: 'justify'
-                        }}>
-                          {enhancedData.summary || 'Ima is a multidisciplinary consultant experience specialising in migration and forced displacement. She has an MSc with Distinction in International and European Politics from the University of Edinburgh and trained with the International Centre for Migration Policy Development, giving her a strong grounding in core pillars of migration management and displacement. Her primary focus lies in humanitarian and protracted refugee responses, and she has a strong interest in the application of triple nexus approaches within fragile contexts.'}
-                        </div>
-                      </div>
-
-                      {/* Nationality Section */}
-                      <div style={{ marginBottom: '25px' }}>
-                        <h3 style={{
-                          fontSize: '12pt',
-                          fontWeight: 'bold',
-                          margin: '0 0 8px 0'
-                        }}>Nationality</h3>
-                        <div style={{ fontSize: '9pt' }}>
-                          {enhancedData.personalInfo?.nationality || 'British, New Zealand'}
-                        </div>
-                      </div>
-
-                      {/* Languages Section */}
-                      <div style={{ marginBottom: '25px' }}>
-                        <h3 style={{
-                          fontSize: '12pt',
-                          fontWeight: 'bold',
-                          margin: '0 0 8px 0'
-                        }}>Languages</h3>
-                        <div style={{ fontSize: '9pt' }}>
-                          {enhancedData.languages && enhancedData.languages.length > 0 ? (
-                            enhancedData.languages.map((lang, index) => (
-                              <div key={index}>
-                                {typeof lang === 'object' ? `${lang.language} (${lang.proficiency})` : lang}
-                              </div>
-                            ))
-                          ) : (
-                            <div>
-                              <div>English (Mother Tongue)</div>
-                              <div>French (Independent)</div>
-                              <div>Modern Standard Arabic (Basic)</div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Qualifications Section */}
-                      <div style={{ marginBottom: '25px' }}>
-                        <h3 style={{
-                          fontSize: '12pt',
-                          fontWeight: 'bold',
-                          margin: '0 0 8px 0'
-                        }}>Qualifications</h3>
-                        <div>
-                          {enhancedData.education && enhancedData.education.length > 0 ? (
-                            enhancedData.education.map((edu, index) => (
-                              <div key={index} style={{ marginBottom: '10px', fontSize: '9pt' }}>
-                                <div style={{ fontWeight: 'bold' }}>
-                                  {edu.degree || 'MSc International and European Politics, with Distinction'}
-                                </div>
-                                <div>{edu.institution || 'The University of Edinburgh'}, {edu.year || edu.graduationDate || '2017'}</div>
-                                {edu.thesis && (
-                                  <div style={{ fontStyle: 'italic', marginTop: '2px' }}>
-                                    <em>Thesis:</em> {edu.thesis}
-                                  </div>
-                                )}
-                              </div>
-                            ))
-                          ) : (
-                            <div style={{ fontSize: '9pt' }}>
-                              <div style={{ fontWeight: 'bold' }}>MSc International and European Politics, with Distinction</div>
-                              <div>The University of Edinburgh, 2017</div>
-                              <div style={{ fontStyle: 'italic', marginTop: '2px' }}>
-                                <em>Thesis:</em> 'Organisational Responses to the Syria Crisis in Greece and Serbia'
-                              </div>
-                              <div style={{ fontWeight: 'bold', marginTop: '8px' }}>BA (Hons) History and Politics</div>
-                              <div>The University of Oxford, 2016</div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Country Work Experience Section */}
-                      <div style={{ marginBottom: '25px' }}>
-                        <h3 style={{
-                          fontSize: '12pt',
-                          fontWeight: 'bold',
-                          margin: '0 0 8px 0'
-                        }}>Country work experience</h3>
-                        <div style={{ fontSize: '8pt', lineHeight: '1.2' }}>
-                          <div><strong>Europe:</strong> UK, Germany, Malta, Spain and <strong>(remote)</strong> Bosnia and Herzegovina, Bulgaria, Italy, Greece, Serbia and Ukraine;</div>
-                          <div><strong>MENA:</strong> Egypt, Jordan and <strong>(remote)</strong> Iraq, Lebanon, Occupied Palestinian Territories, Syria, Tunisia;</div>
-                          <div><strong>LAC:</strong> The Bahamas and <strong>(remote)</strong> Trinidad and Tobago and Mexico;</div>
-                          <div><strong>Asia (remote):</strong> Thailand, Myanmar, Malaysia, Bangladesh, Kyrgyzstan, Tajikistan, Kazakhstan, Uzbekistan;</div>
-                          <div><strong>Africa:</strong> Kenya, Mozambique and <strong>(remote)</strong> Ethiopia, Mauritania, Niger and Uganda.</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Main Content Area */}
-                    <div style={{ flex: 1 }}>
-                      {/* Experience Section */}
-                      <div style={{ marginBottom: '30px' }}>
-                        <h2 style={{
-                          fontSize: '14pt',
-                          fontWeight: 'bold',
-                          margin: '0 0 15px 0'
-                        }}>Experience:</h2>
-
-                        {enhancedData.workExperience && enhancedData.workExperience.length > 0 ? (
-                          enhancedData.workExperience.map((work, index) => (
-                            <div key={index} style={{ marginBottom: '20px' }}>
-                              <div style={{
-                                display: 'flex',
-                                alignItems: 'flex-start',
-                                marginBottom: '8px'
-                              }}>
-                                <div style={{
-                                  width: '120px',
-                                  flexShrink: 0,
-                                  fontSize: '10pt',
-                                  fontWeight: 'bold'
-                                }}>
-                                  {work.dates || `${work.startDate || 'Aug 2024'} - ${work.endDate || 'present'}`}
-                                </div>
-                                <div style={{ flex: 1 }}>
-                                  <div style={{
-                                    fontSize: '11pt',
-                                    fontWeight: 'bold',
-                                    marginBottom: '2px'
-                                  }}>
-                                    {work.position || 'Deputy Team Leader'}, {work.company || 'UNHCR'} – {work.description?.split('.')[0] || 'Multi-Country Evaluation of Phone-Based Contact Centres in MENA'}
-                                  </div>
-                                  <div style={{
-                                    fontSize: '10pt',
-                                    lineHeight: '1.4',
-                                    textAlign: 'justify'
-                                  }}>
-                                    {work.description || 'Ima is responsible for team management across three countries and leads on financial and project management for the assignment. She is the methodology lead, Jordan and Tunisia country case study lead, and responsible for data collection, analysis and reporting.'}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <div>
-                            <div style={{ marginBottom: '20px' }}>
-                              <div style={{ display: 'flex', alignItems: 'flex-start', marginBottom: '8px' }}>
-                                <div style={{ width: '120px', flexShrink: 0, fontSize: '10pt', fontWeight: 'bold' }}>
-                                  August 2024 - present
-                                </div>
-                                <div style={{ flex: 1 }}>
-                                  <div style={{ fontSize: '11pt', fontWeight: 'bold', marginBottom: '2px' }}>
-                                    Deputy Team Leader, UNHCR – Multi-Country Evaluation of Phone-Based Contact Centres in MENA
-                                  </div>
-                                  <div style={{ fontSize: '10pt', lineHeight: '1.4', textAlign: 'justify' }}>
-                                    Ima is responsible for team management across three countries and leads on financial and project management for the assignment. She is the methodology lead, Jordan and Tunisia country case study lead, and responsible for data collection, analysis and reporting.
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-
-                            <div style={{ marginBottom: '20px' }}>
-                              <div style={{ display: 'flex', alignItems: 'flex-start', marginBottom: '8px' }}>
-                                <div style={{ width: '120px', flexShrink: 0, fontSize: '10pt', fontWeight: 'bold' }}>
-                                  July 2024 – present
-                                </div>
-                                <div style={{ flex: 1 }}>
-                                  <div style={{ fontSize: '11pt', fontWeight: 'bold', marginBottom: '2px' }}>
-                                    Quality Assurer, UNHCR – LTA for the provision of Evaluation Quality Assurance Services
-                                  </div>
-                                  <div style={{ fontSize: '10pt', lineHeight: '1.4', textAlign: 'justify' }}>
-                                    Panel member for the Evaluation Quality Assurance LTA, a service delivered to UNHCR Evaluation Unit. Ima is responsible for the delivery of timely formative feedback on draft TOR, Inception Reports, and Evaluation reports.
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Employment Section */}
-                      <div style={{ marginBottom: '30px' }}>
-                        <h2 style={{
-                          fontSize: '14pt',
-                          fontWeight: 'bold',
-                          margin: '0 0 15px 0'
-                        }}>Employment:</h2>
-
-                        <div style={{ marginBottom: '15px' }}>
-                          <div style={{ display: 'flex', alignItems: 'flex-start' }}>
-                            <div style={{ width: '120px', flexShrink: 0, fontSize: '10pt', fontWeight: 'bold' }}>
-                              January 2024 – present
-                            </div>
-                            <div style={{ flex: 1, fontSize: '10pt' }}>
-                              <strong>Employee-Owned Trust Director, IOD PARC</strong>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div style={{ marginBottom: '15px' }}>
-                          <div style={{ display: 'flex', alignItems: 'flex-start' }}>
-                            <div style={{ width: '120px', flexShrink: 0, fontSize: '10pt', fontWeight: 'bold' }}>
-                              Apr 2020 - present
-                            </div>
-                            <div style={{ flex: 1, fontSize: '10pt' }}>
-                              <strong>Senior Consultant, IOD PARC</strong>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Publications Section */}
-                      {enhancedData.publications && enhancedData.publications.length > 0 && (
-                        <div style={{ marginBottom: '30px' }}>
-                          <h2 style={{
-                            fontSize: '14pt',
-                            fontWeight: 'bold',
-                            margin: '0 0 15px 0'
-                          }}>Publications:</h2>
-
-                          {enhancedData.publications.map((pub, index) => (
-                            <div key={index} style={{
-                              marginBottom: '12px',
-                              fontSize: '10pt',
-                              lineHeight: '1.4'
-                            }}>
-                              <div>
-                                {pub.authors || 'Author Name'} {pub.year && `${pub.year}.`} <strong>'{pub.title || 'Publication Title'}'</strong>
-                                {pub.journal && `, ${pub.journal}`}
-                                {pub.location && `, ${pub.location}`}.
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })()}
             </div>
           )}
         </div>
