@@ -9,12 +9,19 @@ const {
     getExperiencePrompt // We will adapt this for individual entries
 } = require('../prompts/extractPrompts');
 
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY; // Load from environment
+// Load API key dynamically to ensure it gets the latest value
+const getApiKey = () => process.env.OPENROUTER_API_KEY;
 const MODEL_NAME = 'anthropic/claude-3.5-sonnet';
 
 async function callLlm(prompt, retries = 3) {
     for (let attempt = 1; attempt <= retries; attempt++) {
         try {
+            const apiKey = getApiKey(); // Get fresh API key on each call
+
+            if (!apiKey) {
+                throw new Error('OpenRouter API key not found in environment variables');
+            }
+
             const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
                 model: MODEL_NAME,
                 messages: [{ role: 'user', content: prompt }],
@@ -22,7 +29,7 @@ async function callLlm(prompt, retries = 3) {
                 max_tokens: 4000
             }, {
                 headers: {
-                    'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+                    'Authorization': `Bearer ${apiKey}`,
                     'Content-Type': 'application/json',
                     'HTTP-Referer': 'http://localhost:5000',
                     'X-Title': 'BD Assistant CV Transformer'
@@ -75,6 +82,7 @@ Text: """${entryText}"""`;
 // The function now accepts the pre-split experienceEntries array.
 async function extractStructuredDataFromSegments(segments, experienceEntries, progressCallback = null) {
     console.log('Calling AI for detailed content extraction on each pre-split entry...');
+    console.log('API Key status:', getApiKey() ? `Available (${getApiKey().length} chars)` : 'NOT FOUND');
 
     if (progressCallback) progressCallback(40, 'Processing profile information...');
 
