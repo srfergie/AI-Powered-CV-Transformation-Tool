@@ -10,10 +10,16 @@ const FONT_FAMILY = "Calibri";
 function createHeaderCell(text, rowSpan = 1) {
     return new TableCell({
         children: [new Paragraph({
-            children: [new TextRun({ text, font: FONT_FAMILY, size: 22, bold: true, color: IOD_PARC_BLUE })],
+            children: [new TextRun({
+                text: text,
+                font: FONT_FAMILY,
+                size: 22,
+                bold: true,
+                color: IOD_PARC_BLUE,
+            })],
         })],
         verticalAlign: VerticalAlign.TOP,
-        rowSpan,
+        rowSpan: rowSpan,
         borders: {
             top: { style: BorderStyle.NONE },
             bottom: { style: BorderStyle.NONE },
@@ -39,11 +45,18 @@ function createContentCell(paragraphs) {
 function createExperienceParagraphs(exp) {
     const descriptionParagraphs = (exp.description || "").split('\n')
         .filter(line => line.trim() !== "")
-        .map(line => new Paragraph({
-            children: [new TextRun({ text: line, font: FONT_FAMILY, size: 22 })],
-            alignment: AlignmentType.JUSTIFIED,
-            spacing: { after: 80 },
-        }));
+        .map(line => {
+            const trimmedLine = line.trim();
+            const isBullet = ['•', '-', '–', '*', '(i)', '(ii)', '(iii)', '(iv)'].some(char => trimmedLine.startsWith(char));
+            const textContent = isBullet ? trimmedLine.substring(1).trim() : trimmedLine;
+
+            return new Paragraph({
+                children: [new TextRun({ text: textContent, font: FONT_FAMILY, size: 22 })],
+                alignment: AlignmentType.JUSTIFIED,
+                bullet: isBullet ? { level: 0 } : undefined,
+                spacing: { after: 80 }
+            });
+        });
 
     return [
         new Paragraph({
@@ -73,41 +86,35 @@ async function generateIodParcDocx(data) {
 
     // --- Profile Section ---
     if (data.profile) {
-        allRows.push(new TableRow({
-            children: [
-                createHeaderCell("Profile"),
-                createContentCell([new Paragraph({
-                    children: [new TextRun({ text: data.profile, font: FONT_FAMILY, size: 22 })],
-                    alignment: AlignmentType.JUSTIFIED
-                })])
-            ]
+        const profileParas = (data.profile || "").split('\n').filter(p => p.trim() !== "").map(p => new Paragraph({
+            children: [new TextRun({ text: p, font: FONT_FAMILY, size: 22 })],
+            alignment: AlignmentType.JUSTIFIED,
+            spacing: { after: 120 }
         }));
+        allRows.push(new TableRow({ children: [createHeaderCell("Profile"), createContentCell(profileParas)] }));
     }
 
     // --- Nationality & Languages ---
     const languageString = (data.languages || []).map(l => `${l.language} (${l.proficiency})`).join(', ');
-    allRows.push(new TableRow({
-        children: [
-            createHeaderCell("Nationality & Languages"),
-            createContentCell([
-                new Paragraph({
-                    children: [new TextRun({ text: data.nationality || 'Not specified', font: FONT_FAMILY, size: 22 })]
-                }),
-                new Paragraph({
-                    children: [new TextRun({ text: languageString || 'Not specified', font: FONT_FAMILY, size: 22 })]
-                })
-            ])
-        ]
-    }));
+    const nationalityParas = [
+        new Paragraph({
+            children: [new TextRun({ text: data.nationality || 'Not specified', font: FONT_FAMILY, size: 22 })],
+            spacing: { after: 120 }
+        }),
+        new Paragraph({
+            children: [new TextRun({ text: languageString || 'Not specified', font: FONT_FAMILY, size: 22 })],
+            spacing: { after: 120 }
+        })
+    ];
+    allRows.push(new TableRow({ children: [createHeaderCell("Nationality & Languages"), createContentCell(nationalityParas)] }));
 
     // --- Qualifications ---
     const qualContent = (data.qualifications || []).map(q =>
         new Paragraph({
-            children: [new TextRun({
-                text: `${q.year}, ${q.degree}, ${q.institution}\n${q.details || ''}`,
-                font: FONT_FAMILY,
-                size: 22
-            })],
+            children: [
+                new TextRun({ text: `${q.year}, ${q.degree}, ${q.institution}`, font: FONT_FAMILY, size: 22, bold: true }),
+                new TextRun({ text: `\n${q.details || ''}`, font: FONT_FAMILY, size: 22, italics: true }),
+            ],
             spacing: { after: 120 }
         })
     );
@@ -126,37 +133,32 @@ async function generateIodParcDocx(data) {
     }));
 
     // --- Country work experience ---
-    allRows.push(new TableRow({
-        children: [
-            createHeaderCell("Country work experience"),
-            createContentCell([
-                new Paragraph({
-                    children: [new TextRun({
-                        text: (data.countryWorkExperience || []).join(', ') || 'Not specified',
-                        font: FONT_FAMILY,
-                        size: 22
-                    })]
-                })
-            ])
-        ]
-    }));
+    const countryExpPara = new Paragraph({
+        children: [new TextRun({ text: (data.countryWorkExperience || []).join(', ') || 'Not specified', font: FONT_FAMILY, size: 22 })],
+        spacing: { after: 120 }
+    });
+    allRows.push(new TableRow({ children: [createHeaderCell("Country work experience"), createContentCell([countryExpPara])] }));
 
     // --- Experience Section with rowSpan ---
     const experienceEntries = data.experience || [];
     if (experienceEntries.length > 0) {
-        // First experience entry with header
-        allRows.push(new TableRow({
+        console.log(`Processing ${experienceEntries.length} experience entries with rowspan`);
+
+        // The first row gets the header cell with a rowSpan covering all experience entries.
+        const firstExpRow = new TableRow({
             children: [
                 createHeaderCell("Experience", experienceEntries.length),
                 createContentCell(createExperienceParagraphs(experienceEntries[0])),
             ],
-        }));
+        });
+        allRows.push(firstExpRow);
 
-        // Subsequent experience entries (no header)
+        // Subsequent rows for experience ONLY get the content cell.
         for (let i = 1; i < experienceEntries.length; i++) {
-            allRows.push(new TableRow({
-                children: [createContentCell(createExperienceParagraphs(experienceEntries[i]))]
-            }));
+            const subsequentExpRow = new TableRow({
+                children: [createContentCell(createExperienceParagraphs(experienceEntries[i]))],
+            });
+            allRows.push(subsequentExpRow);
         }
     } else {
         // No experience found
@@ -209,10 +211,31 @@ async function generateIodParcDocx(data) {
             }],
         },
         sections: [{
+            headers: {
+                default: new docx.Header({
+                    children: [
+                        new Paragraph({
+                            children: [new TextRun({ text: "Richard Burge", font: FONT_FAMILY, size: 48, color: IOD_PARC_BLUE })],
+                            alignment: AlignmentType.CENTER
+                        }),
+                    ],
+                }),
+            },
+            footers: {
+                default: new docx.Footer({
+                    children: [
+                        new Paragraph({
+                            alignment: AlignmentType.RIGHT,
+                            children: [new TextRun({ children: [docx.PageNumber.CURRENT, " | ", docx.PageNumber.TOTAL_PAGES], font: FONT_FAMILY, size: 18 })],
+                        }),
+                    ],
+                }),
+            },
+            properties: { page: { margin: { top: 1000, right: 720, bottom: 720, left: 720 } } },
             children: [
                 new Table({
                     width: { size: 100, type: WidthType.PERCENTAGE },
-                    columnWidths: [2500, 7500], // 25% for headers, 75% for content
+                    columnWidths: [2500, 7500],
                     rows: allRows,
                     borders: {
                         top: { style: BorderStyle.NONE },
