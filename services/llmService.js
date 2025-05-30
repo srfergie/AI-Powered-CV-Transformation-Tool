@@ -184,8 +184,23 @@ Respond with ONLY a JSON object in this exact format:
 Text: """${entryText}"""`;
 }
 
-// The function now accepts the pre-split experienceEntries array.
-async function extractStructuredDataFromSegments(segments, experienceEntries, progressCallback = null) {
+// Function to create prompt for individual employment entry
+function getSingleEmploymentPrompt(entryText) {
+    return `From the employment record entry below, extract the dates, position, employer/agency, and responsibilities.
+
+Respond with ONLY a JSON object in this exact format:
+{
+    "dates": "extracted date range (From-To dates)",
+    "position": "job title/position held",
+    "employer": "employer or contracting agency name",
+    "responsibilities": "full responsibilities and description"
+}
+
+Employment Record Text: """${entryText}"""`;
+}
+
+// The function now accepts the pre-split experienceEntries array and employmentEntries array.
+async function extractStructuredDataFromSegments(segments, experienceEntries, progressCallback = null, employmentEntries = []) {
     console.log('🔄 Calling AI for detailed content extraction on each pre-split entry...');
     console.log('API Key status:', getApiKey() ? `Available (${getApiKey().length} chars)` : 'NOT FOUND');
 
@@ -199,7 +214,13 @@ async function extractStructuredDataFromSegments(segments, experienceEntries, pr
             return callLlm(getSingleExperiencePrompt(entryText));
         });
 
-        if (progressCallback) progressCallback(50, 'Processing experience entries individually...');
+        // --- NEW: Process each employment entry individually in parallel ---
+        const employmentPromises = employmentEntries.map((entryText, index) => {
+            console.log(`Creating AI call for employment entry ${index + 1}/${employmentEntries.length}`);
+            return callLlm(getSingleEmploymentPrompt(entryText));
+        });
+
+        if (progressCallback) progressCallback(50, 'Processing experience and employment entries individually...');
 
         // Process other sections as before.
         const [
@@ -208,14 +229,16 @@ async function extractStructuredDataFromSegments(segments, experienceEntries, pr
             countryData,
             qualificationsData,
             publicationsData,
-            experienceResults // This will be an array of results from the promises above
+            experienceResults, // This will be an array of results from the promises above
+            employmentResults // This will be an array of employment results
         ] = await Promise.all([
             callLlm(getProfilePrompt(segments.profile)),
             callLlm(getPersonalDetailsPrompt(segments.personal_details)),
             callLlm(getCountryExperiencePrompt(segments.country_experience)),
             callLlm(getQualificationsPrompt(segments.qualifications)),
             callLlm(getPublicationsPrompt(segments.publications)),
-            Promise.all(experiencePromises) // We wait for all the individual experience calls to complete
+            Promise.all(experiencePromises), // We wait for all the individual experience calls to complete
+            Promise.all(employmentPromises) // We wait for all the individual employment calls to complete
         ]);
 
         if (progressCallback) progressCallback(85, 'Consolidating extracted data...');
@@ -223,8 +246,10 @@ async function extractStructuredDataFromSegments(segments, experienceEntries, pr
         // The result from the LLM for a single entry might be just the object, 
         // not wrapped in an "experience" array, so we just collect them.
         const finalExperienceData = experienceResults.filter(res => res && res.dates); // Filter out any failed extractions
+        const finalEmploymentData = employmentResults.filter(res => res && res.dates); // Filter out any failed extractions
 
         console.log(`✅ Successfully processed ${finalExperienceData.length}/${experienceEntries.length} experience entries`);
+        console.log(`✅ Successfully processed ${finalEmploymentData.length}/${employmentEntries.length} employment entries`);
 
         return {
             profile: profileData.profile || '',
@@ -236,6 +261,7 @@ async function extractStructuredDataFromSegments(segments, experienceEntries, pr
             qualifications: qualificationsData.qualifications || [],
             publications: publicationsData.publications || [],
             experience: finalExperienceData, // Assign the fully populated array
+            employment: finalEmploymentData, // Add employment section
         };
     } catch (error) {
         console.error('❌ Error in extractStructuredDataFromSegments:', error);
@@ -266,6 +292,12 @@ async function extractStructuredDataFromSegments(segments, experienceEntries, pr
                 client: 'Please try again',
                 location: 'Unknown',
                 description: 'AI extraction service temporarily unavailable. Please ensure API configuration is correct.'
+            }],
+            employment: [{
+                dates: 'Unknown',
+                position: 'Information temporarily unavailable',
+                employer: 'Please try again',
+                responsibilities: 'AI extraction service temporarily unavailable. Please ensure API configuration is correct.'
             }],
         };
     }
