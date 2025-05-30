@@ -170,33 +170,62 @@ Respond with ONLY a JSON object in this format:
 
 // Function to create prompt for individual experience entry
 function getSingleExperiencePrompt(entryText) {
-    return `From the text for a single job entry below, extract the dates, role, client, location, and the full verbatim description.
+    return `From the single job/experience entry below, extract the following information:
+- dates: The date range (e.g., "2020-2023", "Jan 2020 - Present")
+- role: The job title or role
+- client: The company, organization, or client name
+- location: The work location (city, country, or "Remote")
+- description: The COMPLETE job description and responsibilities
 
-Respond with ONLY a JSON object in this exact format:
+IMPORTANT JSON FORMATTING RULES:
+- Use double quotes for all strings
+- Properly escape quotes within text using \\"
+- Replace line breaks in description with \\n
+- Ensure no trailing commas
+- Keep all text on single lines within JSON
+
+Respond with ONLY a valid JSON object in this exact format:
 {
     "dates": "extracted date range",
-    "role": "job title/role",
+    "role": "job title or role",
     "client": "company or client name",
     "location": "work location",
-    "description": "full job description and responsibilities"
+    "description": "full job description with properly escaped quotes and newlines"
 }
 
-Text: """${entryText}"""`;
+If any field is not found, use "Not specified" as the value.
+
+Experience Entry:
+"""${entryText}"""`;
 }
 
 // Function to create prompt for individual employment entry
 function getSingleEmploymentPrompt(entryText) {
-    return `From the employment record entry below, extract the dates, position, employer/agency, and responsibilities.
+    return `From the employment record entry below, extract the following information:
+- dates: The date range (From-To format)
+- position: The job title or position held
+- employer: The employer or contracting agency name
+- responsibilities: The COMPLETE responsibilities and description
 
-Respond with ONLY a JSON object in this exact format:
+IMPORTANT JSON FORMATTING RULES:
+- Use double quotes for all strings
+- Properly escape quotes within text using \\"
+- Replace line breaks in responsibilities with \\n
+- Ensure no trailing commas
+- Keep all text on single lines within JSON
+
+Respond with ONLY a valid JSON object in this exact format:
 {
-    "dates": "extracted date range (From-To dates)",
-    "position": "job title/position held",
-    "employer": "employer or contracting agency name",
-    "responsibilities": "full responsibilities and description"
+    "dates": "extracted date range",
+    "position": "job title or position",
+    "employer": "employer or agency name",
+    "responsibilities": "full responsibilities with properly escaped quotes and newlines"
 }
 
-Employment Record Text: """${entryText}"""`;
+If any field is not found, use "Not specified" as the value.
+
+Employment Record:
+"""${entryText}"""`;
 }
 
 // The function now accepts the pre-split experienceEntries array and employmentEntries array.
