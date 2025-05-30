@@ -1,4 +1,4 @@
-// services/llmService.js
+// services/llmService.js (FINAL REFINED VERSION)
 const axios = require('axios');
 const {
     getProfilePrompt,
@@ -6,7 +6,7 @@ const {
     getCountryExperiencePrompt,
     getQualificationsPrompt,
     getPublicationsPrompt,
-    getExperiencePrompt
+    getExperiencePrompt // We will adapt this for individual entries
 } = require('../prompts/extractPrompts');
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY; // Load from environment
@@ -56,29 +56,62 @@ async function callLlm(prompt, retries = 3) {
     }
 }
 
-async function extractStructuredDataFromSegments(segments, progressCallback = null) {
-    console.log('Calling AI for detailed content extraction...');
+// Function to create prompt for individual experience entry
+function getSingleExperiencePrompt(entryText) {
+    return `From the text for a single job entry below, extract the dates, role, client, location, and the full verbatim description.
 
-    if (progressCallback) progressCallback(10, 'Extracting profile information...');
+Respond with ONLY a JSON object in this exact format:
+{
+    "dates": "extracted date range",
+    "role": "job title/role",
+    "client": "company or client name",
+    "location": "work location",
+    "description": "full job description and responsibilities"
+}
+
+Text: """${entryText}"""`;
+}
+
+// The function now accepts the pre-split experienceEntries array.
+async function extractStructuredDataFromSegments(segments, experienceEntries, progressCallback = null) {
+    console.log('Calling AI for detailed content extraction on each pre-split entry...');
+
+    if (progressCallback) progressCallback(40, 'Processing profile information...');
 
     try {
+        // --- NEW: Process each experience entry individually in parallel ---
+        const experiencePromises = experienceEntries.map((entryText, index) => {
+            console.log(`Creating AI call for experience entry ${index + 1}/${experienceEntries.length}`);
+            // The prompt now only has to parse ONE entry, which is a much easier task.
+            return callLlm(getSingleExperiencePrompt(entryText));
+        });
+
+        if (progressCallback) progressCallback(50, 'Processing experience entries individually...');
+
+        // Process other sections as before.
         const [
             profileData,
             personalData,
             countryData,
             qualificationsData,
             publicationsData,
-            experienceData
+            experienceResults // This will be an array of results from the promises above
         ] = await Promise.all([
             callLlm(getProfilePrompt(segments.profile)),
             callLlm(getPersonalDetailsPrompt(segments.personal_details)),
             callLlm(getCountryExperiencePrompt(segments.country_experience)),
             callLlm(getQualificationsPrompt(segments.qualifications)),
             callLlm(getPublicationsPrompt(segments.publications)),
-            callLlm(getExperiencePrompt(segments.experience))
+            Promise.all(experiencePromises) // We wait for all the individual experience calls to complete
         ]);
 
-        if (progressCallback) progressCallback(90, 'AI extraction completed successfully!');
+        if (progressCallback) progressCallback(85, 'Consolidating extracted data...');
+
+        // The result from the LLM for a single entry might be just the object, 
+        // not wrapped in an "experience" array, so we just collect them.
+        const finalExperienceData = experienceResults.filter(res => res && res.dates); // Filter out any failed extractions
+
+        console.log(`Successfully processed ${finalExperienceData.length}/${experienceEntries.length} experience entries`);
 
         return {
             profile: profileData.profile || '',
@@ -87,30 +120,30 @@ async function extractStructuredDataFromSegments(segments, progressCallback = nu
             countryWorkExperience: countryData.countries || [],
             qualifications: qualificationsData.qualifications || [],
             publications: publicationsData.publications || [],
-            experience: experienceData.experience || [],
+            experience: finalExperienceData, // Assign the fully populated array
         };
     } catch (error) {
         console.error('Error in extractStructuredDataFromSegments:', error);
 
-        // Return fallback structure
+        // Enhanced fallback structure with better placeholder data
         return {
-            profile: 'Profile extraction failed - check OpenRouter API configuration',
+            profile: 'AI extraction temporarily unavailable. Please check server configuration.',
             nationality: 'Unknown',
-            languages: [{ language: 'Extraction failed', proficiency: 'Unknown' }],
-            countryWorkExperience: ['Extraction failed'],
+            languages: [{ language: 'Information not available', proficiency: 'Unknown' }],
+            countryWorkExperience: ['Information not available'],
             qualifications: [{
                 year: 'Unknown',
-                degree: 'Extraction failed',
-                institution: 'Check logs',
-                details: error.message
+                degree: 'Information temporarily unavailable',
+                institution: 'Please try again',
+                details: 'AI service temporarily unavailable'
             }],
-            publications: [{ citation: 'Publication extraction failed - check server logs' }],
+            publications: [{ citation: 'Publications information temporarily unavailable' }],
             experience: [{
                 dates: 'Unknown',
-                role: 'Extraction failed',
-                client: 'Check server logs',
+                role: 'Information temporarily unavailable',
+                client: 'Please try again',
                 location: 'Unknown',
-                description: `Error during AI extraction: ${error.message}`
+                description: 'AI extraction service temporarily unavailable. Please ensure API configuration is correct.'
             }],
         };
     }
