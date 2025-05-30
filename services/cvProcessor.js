@@ -208,16 +208,18 @@ const SECTION_DICTIONARIES = {
         'WORK RECORD', 'Work Record', 'work record',
         'WORK HISTORY', 'Work History', 'work history',
         'CAREER HISTORY', 'Career History', 'career history',
-        'PROFESSIONAL EXPERIENCE', 'Professional Experience', 'professional experience',
         'POSITIONS HELD', 'Positions Held', 'positions held',
         'PROFESSIONAL ROLES', 'Professional Roles', 'professional roles',
         'CURRENT POSITION', 'Current Position', 'current position',
-        'PREVIOUS POSITIONS', 'Previous Positions', 'previous positions'
+        'PREVIOUS POSITIONS', 'Previous Positions', 'previous positions',
+        'EMPLOYMENT BACKGROUND', 'Employment Background', 'employment background',
+        'JOB BACKGROUND', 'Job Background', 'job background'
     ],
 
     // Broader Experience terms - projects, consulting, relevant experience
     experience: [
         'EXPERIENCE', 'Experience', 'experience',
+        'PROFESSIONAL EXPERIENCE', 'Professional Experience', 'professional experience',
         'RELEVANT EXPERIENCE', 'Relevant Experience', 'relevant experience',
         'OTHER RELEVANT EXPERIENCE', 'Other relevant experience', 'other relevant experience',
         'PREVIOUS EXPERIENCE', 'Previous Experience', 'previous experience',
@@ -340,9 +342,23 @@ const SECTION_DICTIONARIES = {
 function mapSectionToCategory(sectionName) {
     console.log(`🔍 Attempting to map section: "${sectionName}"`);
 
+    const sectionUpper = sectionName.toUpperCase();
+
+    // First pass: Look for exact matches (prioritize precision)
     for (const [category, terms] of Object.entries(SECTION_DICTIONARIES)) {
         for (const term of terms) {
-            const sectionUpper = sectionName.toUpperCase();
+            const termUpper = term.toUpperCase();
+
+            if (sectionUpper === termUpper) {
+                console.log(`✅ EXACT MATCH: "${sectionName}" → ${category} (exact term: "${term}")`);
+                return category;
+            }
+        }
+    }
+
+    // Second pass: Look for contains matches (broader matching)
+    for (const [category, terms] of Object.entries(SECTION_DICTIONARIES)) {
+        for (const term of terms) {
             const termUpper = term.toUpperCase();
 
             // Check both directions for flexible matching
@@ -350,7 +366,7 @@ function mapSectionToCategory(sectionName) {
             const reverseMatch = termUpper.includes(sectionUpper);
 
             if (includesMatch || reverseMatch) {
-                console.log(`✅ MATCHED: "${sectionName}" → ${category} (matched term: "${term}")`);
+                console.log(`✅ PARTIAL MATCH: "${sectionName}" → ${category} (matched term: "${term}")`);
                 return category;
             }
         }
