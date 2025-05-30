@@ -123,6 +123,8 @@ async function extractStructuredDataFromSegments(segments, experienceEntries, pr
 
         return {
             profile: profileData.profile || '',
+            name: personalData.name || '',
+            personalDetails: personalData,
             nationality: personalData.nationality || '',
             languages: personalData.languages || [],
             countryWorkExperience: countryData.countries || [],
@@ -136,6 +138,13 @@ async function extractStructuredDataFromSegments(segments, experienceEntries, pr
         // Enhanced fallback structure with better placeholder data
         return {
             profile: 'AI extraction temporarily unavailable. Please check server configuration.',
+            name: 'Unknown',
+            personalDetails: {
+                name: 'Unknown',
+                nationality: 'Unknown',
+                languages: [{ language: 'Information not available', proficiency: 'Unknown' }],
+                country_experience: 'Information not available'
+            },
             nationality: 'Unknown',
             languages: [{ language: 'Information not available', proficiency: 'Unknown' }],
             countryWorkExperience: ['Information not available'],

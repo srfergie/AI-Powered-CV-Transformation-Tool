@@ -11,12 +11,19 @@ async function extractTextFromDocx(filePath) {
 function parseCvWithHeuristics(text) {
     console.log("Parsing CV with deterministic, rule-based heuristics...");
 
+    // More comprehensive and flexible header patterns
     const headers = [
-        "Profile", "Nationality", "Qualifications", "Country work experience",
-        "Experience:", "Employment:", "Publications:"
+        "Profile", "PROFILE", "Summary", "SUMMARY", "Personal Statement",
+        "Nationality", "NATIONALITY", "Personal Details", "PERSONAL DETAILS",
+        "Qualifications", "QUALIFICATIONS", "Education", "EDUCATION",
+        "Country work experience", "COUNTRY WORK EXPERIENCE", "International Experience",
+        "Experience", "EXPERIENCE", "Work Experience", "WORK EXPERIENCE",
+        "Employment", "EMPLOYMENT", "Career History", "CAREER HISTORY",
+        "Publications", "PUBLICATIONS", "Research", "RESEARCH"
     ];
 
-    const regex = new RegExp(`^(${headers.join('|')})`, 'im');
+    // More flexible regex that allows leading whitespace and is case-insensitive
+    const regex = new RegExp(`^\\s*(${headers.join('|')})\\s*:?\\s*$`, 'im');
     const sections = {};
     const lines = text.split('\n');
     let currentSectionName = "Header";
@@ -25,16 +32,35 @@ function parseCvWithHeuristics(text) {
     for (const line of lines) {
         const match = line.match(regex);
         if (match) {
+            // Save previous section
             if (currentSectionName) {
                 sections[currentSectionName] = currentSectionContent.join('\n');
             }
-            currentSectionName = match[1].trim().replace(':', '');
+            // Start new section
+            currentSectionName = match[1].trim().replace(':', '').toLowerCase();
+            // Normalize section names
+            if (currentSectionName.includes('experience') && !currentSectionName.includes('country')) {
+                currentSectionName = 'Experience';
+            } else if (currentSectionName.includes('country')) {
+                currentSectionName = 'Country work experience';
+            } else if (currentSectionName.includes('profile') || currentSectionName.includes('summary')) {
+                currentSectionName = 'Profile';
+            } else if (currentSectionName.includes('nationality') || currentSectionName.includes('personal')) {
+                currentSectionName = 'Nationality';
+            } else if (currentSectionName.includes('qualification') || currentSectionName.includes('education')) {
+                currentSectionName = 'Qualifications';
+            } else if (currentSectionName.includes('publication') || currentSectionName.includes('research')) {
+                currentSectionName = 'Publications';
+            } else if (currentSectionName.includes('employment') || currentSectionName.includes('career')) {
+                currentSectionName = 'Employment';
+            }
             currentSectionContent = [];
         } else if (currentSectionName) {
             currentSectionContent.push(line);
         }
     }
 
+    // Save the last section
     if (currentSectionName) {
         sections[currentSectionName] = currentSectionContent.join('\n');
     }

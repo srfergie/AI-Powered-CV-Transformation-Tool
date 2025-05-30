@@ -215,7 +215,12 @@ async function generateIodParcDocx(data) {
                 default: new docx.Header({
                     children: [
                         new Paragraph({
-                            children: [new TextRun({ text: "Richard Burge", font: FONT_FAMILY, size: 48, color: IOD_PARC_BLUE })],
+                            children: [new TextRun({
+                                text: (data.personalDetails?.name || data.name || "CV Applicant"),
+                                font: FONT_FAMILY,
+                                size: 48,
+                                color: IOD_PARC_BLUE
+                            })],
                             alignment: AlignmentType.CENTER
                         }),
                     ],
