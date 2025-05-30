@@ -8,6 +8,7 @@ This document describes the comprehensive enhancements made to improve nationali
 - Information might be scattered throughout the CV rather than in a dedicated section
 - Many CVs don't have explicit "Personal Details" sections
 - The AI extraction alone was insufficient when the section was missing or unclear
+- **UPDATE**: Initial implementation was too permissive and extracted random words as languages
 
 ## Solution Implemented
 
@@ -25,7 +26,10 @@ Created two new dedicated extraction functions in `services/cvProcessor.js`:
   - And more variations
 - Filters out false positives like "dual nationality" or "multiple citizenships"
 
-#### `extractLanguagesFromCV(fullText, segments)`
+#### `extractLanguagesFromCV(fullText, segments)` - **ENHANCED**
+- **STRICT VALIDATION**: Only accepts words from predefined list of 70+ language names
+- **PRECISE PATTERNS**: Uses targeted regex patterns for language sections only
+- **FALSE POSITIVE PREVENTION**: Filters out non-language words automatically
 - Searches entire CV for language information
 - Detects various patterns:
   - `Languages: [list]`
@@ -34,24 +38,30 @@ Created two new dedicated extraction functions in `services/cvProcessor.js`:
   - `Native speaker of: [language]`
   - And many more variations
 - Extracts proficiency levels (Native, Fluent, Intermediate, Basic)
-- Recognizes 35+ common language names
+- Recognizes 70+ language names including African, European, Asian languages
 - Handles various formats (comma-separated, structured lists, etc.)
 
-### 2. Enhanced Personal Details Dictionary
+### 2. Enhanced Validation System
+- **Language Whitelist**: Only words in the predefined language list are accepted
+- **Context Filtering**: Excludes common non-language words like "and", "or", "including"
+- **Structured Parsing**: Handles "English (Fluent)" format correctly
+- **Case-Insensitive Matching**: Works regardless of capitalization
+
+### 3. Enhanced Personal Details Dictionary
 Expanded the `personal_details` section dictionary to include:
 - More variations of nationality headers
 - Additional language-related headers
 - General information headers that might contain this data
 - Total of 40+ header variations
 
-### 3. Improved AI Extraction
+### 4. Improved AI Extraction
 - Enhanced the personal details prompt in `prompts/extractPrompts.js`
 - Made it more explicit about what to search for
 - Provided specific keywords and patterns to look for
 - Enhanced context passing in `services/llmService.js`
 - Now combines personal_details, profile, skills, and part of qualifications sections
 
-### 4. Integrated Fallback Logic
+### 5. Integrated Fallback Logic
 Updated `processCv()` function to:
 - First attempt AI extraction
 - If AI returns default/unknown values, use pattern-based extraction
@@ -59,29 +69,42 @@ Updated `processCv()` function to:
 
 ## Technical Details
 
-### Supported Nationality Patterns
-```javascript
-/nationality\s*[:=]?\s*([A-Za-z\s\-]+?)(?:\n|;|,|\||$)/gi
-/citizen(?:ship)?\s*[:=]?\s*([A-Za-z\s\-]+?)(?:\n|;|,|\||$)/gi
-/passport\s*[:=]?\s*([A-Za-z\s\-]+?)(?:\n|;|,|\||$)/gi
-// And more...
-```
+### Supported Language Names (70+)
+**European**: English, French, Spanish, German, Italian, Portuguese, Russian, Polish, Dutch, Swedish, Norwegian, Danish, Finnish, Greek, Czech, Slovak, Hungarian, Romanian, Bulgarian, Croatian, Serbian, Bosnian, Slovenian, Albanian, Lithuanian, Latvian, Estonian, Ukrainian, Belarusian, Macedonian
 
-### Supported Language Patterns
+**Asian**: Chinese, Mandarin, Cantonese, Japanese, Korean, Hindi, Bengali, Urdu, Turkish, Thai, Vietnamese, Indonesian, Malay, Tagalog
+
+**African**: Swahili, Yoruba, Zulu, Amharic, Hausa, Luganda, Luo, Kikuyu, Kinyarwanda, Kirundi, Somali, Oromo, Tigrinya, Wolof, Fulani, Igbo, Akan, Ewe, Fon, Bambara
+
+**Middle Eastern**: Arabic, Hebrew, Farsi, Persian, Pashto, Dari, Kurdish, Azerbaijani, Georgian, Armenian
+
+**Central Asian**: Kazakh, Uzbek, Kyrgyz, Tajik, Turkmen, Mongolian
+
+### Improved Language Patterns
 ```javascript
-/languages?\s*[:=]?\s*([^\n]+)(?:\n|$)/gi
-/fluent\s+in\s*[:=]?\s*([^\n]+)(?:\n|$)/gi
-/mother\s+tongue\s*[:=]?\s*([^\n]+)(?:\n|$)/gi
-// And more...
+// Only look for explicit language sections
+/(?:languages?|linguistic\s+skills?|language\s+skills?)\s*[:=]\s*([^\n.;]+)/gi
+/(?:fluent\s+in|proficient\s+in|speaks?)\s*[:=]?\s*([^\n.;]+)/gi
+/(?:native\s+language|mother\s+tongue)\s*[:=]\s*([^\n.;]+)/gi
+// Structured format: "English (Fluent)"
+/([A-Za-z]+)\s*\(([^)]+)\)/g
 ```
 
 ### Language Proficiency Mapping
-- **Native**: native, mother tongue, first language, L1
-- **Fluent**: fluent, excellent, advanced, C2, C1, proficient
-- **Intermediate**: intermediate, good, working knowledge, B2, B1, conversational
-- **Basic**: basic, elementary, beginner, A2, A1, limited
+- **Native**: native, mother tongue, first language, L1, maternal
+- **Fluent**: fluent, excellent, advanced, C2, C1, proficient, expert  
+- **Intermediate**: intermediate, good, working knowledge, B2, B1, conversational, competent
+- **Basic**: basic, elementary, beginner, A2, A1, limited, beginner level
 
 ## Handling Edge Cases
+
+### False Positive Prevention
+The enhanced system now correctly filters out:
+- Country names (Kenya, Malawi, etc.)
+- Month names (January, February, etc.)  
+- Common words (International, Management, etc.)
+- Person names (Ernst, Elizabeth, etc.)
+- Action words (managing, monitoring, etc.)
 
 ### When Information is Not Found
 - Returns "Not specified" for nationality
@@ -96,15 +119,28 @@ Many professional CVs (like Brooks Joanna's) don't include:
 
 In these cases, the system correctly identifies that the information is not available rather than making assumptions.
 
+## Before vs After Fix
+
+### Before (Problematic Output):
+```
+English (Fluent), Luo (Native), Swahili (Basic), Luganda (Basic), Kenya (Not specified), Malawi (Not specified), South (Not specified), International (Not specified), Ernst (Not specified), September (Not specified), managing (Not specified)...
+```
+
+### After (Clean Output):
+```
+English (Fluent), Luo (Native), Swahili (Basic), Luganda (Basic)
+```
+
 ## Benefits
-1. **Robustness**: Works even when AI extraction fails
-2. **Flexibility**: Handles diverse CV formats and structures
-3. **Accuracy**: Reduces false positives with validation
-4. **Completeness**: Searches entire CV, not just specific sections
-5. **Fallback**: Pattern-based extraction as safety net
+1. **Accuracy**: Eliminates false positives and random word extraction
+2. **Robustness**: Works even when AI extraction fails
+3. **Flexibility**: Handles diverse CV formats and structures
+4. **Precision**: Only extracts actual language names from validated list
+5. **Completeness**: Searches entire CV, not just specific sections
+6. **Fallback**: Pattern-based extraction as safety net
 
 ## Future Enhancements
-1. Add more language names (currently supports 35+)
+1. Add more language names (currently supports 70+)
 2. Detect nationality from other clues (phone codes, addresses)
 3. Support more proficiency frameworks (CEFR, ACTFL, etc.)
 4. Machine learning to improve pattern recognition

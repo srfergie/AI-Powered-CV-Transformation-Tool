@@ -1293,138 +1293,144 @@ function extractLanguagesFromCV(fullText, segments) {
     const languages = [];
     const seenLanguages = new Set();
 
-    // Language patterns with proficiency levels
-    const languagePatterns = [
-        /languages?\s*[:=]?\s*([^\n]+)(?:\n|$)/gi,
-        /language\s+skills?\s*[:=]?\s*([^\n]+)(?:\n|$)/gi,
-        /linguistic\s+skills?\s*[:=]?\s*([^\n]+)(?:\n|$)/gi,
-        /fluent\s+in\s*[:=]?\s*([^\n]+)(?:\n|$)/gi,
-        /proficient\s+in\s*[:=]?\s*([^\n]+)(?:\n|$)/gi,
-        /native\s+language\s*[:=]?\s*([^\n]+)(?:\n|$)/gi,
-        /mother\s+tongue\s*[:=]?\s*([^\n]+)(?:\n|$)/gi,
-        /speaks?\s*[:=]?\s*([^\n]+)(?:\n|$)/gi
-    ];
-
-    // Proficiency keywords
-    const proficiencyKeywords = {
-        'native': ['native', 'mother tongue', 'first language', 'L1'],
-        'fluent': ['fluent', 'excellent', 'advanced', 'C2', 'C1', 'proficient'],
-        'intermediate': ['intermediate', 'good', 'working knowledge', 'B2', 'B1', 'conversational'],
-        'basic': ['basic', 'elementary', 'beginner', 'A2', 'A1', 'limited']
-    };
-
-    // Common language names
+    // Common language names (expanded and more comprehensive)
     const commonLanguages = [
         'English', 'French', 'Spanish', 'German', 'Italian', 'Portuguese', 'Russian',
         'Chinese', 'Mandarin', 'Cantonese', 'Japanese', 'Korean', 'Arabic', 'Hindi',
         'Bengali', 'Urdu', 'Turkish', 'Polish', 'Dutch', 'Swedish', 'Norwegian',
         'Danish', 'Finnish', 'Greek', 'Hebrew', 'Thai', 'Vietnamese', 'Indonesian',
-        'Malay', 'Tagalog', 'Swahili', 'Yoruba', 'Zulu', 'Amharic', 'Hausa'
+        'Malay', 'Tagalog', 'Swahili', 'Yoruba', 'Zulu', 'Amharic', 'Hausa',
+        'Luganda', 'Luo', 'Kikuyu', 'Kinyarwanda', 'Kirundi', 'Somali', 'Oromo',
+        'Tigrinya', 'Wolof', 'Fulani', 'Igbo', 'Akan', 'Ewe', 'Fon', 'Bambara',
+        'Czech', 'Slovak', 'Hungarian', 'Romanian', 'Bulgarian', 'Croatian',
+        'Serbian', 'Bosnian', 'Slovenian', 'Albanian', 'Lithuanian', 'Latvian',
+        'Estonian', 'Ukrainian', 'Belarusian', 'Macedonian', 'Farsi', 'Persian',
+        'Pashto', 'Dari', 'Kurdish', 'Azerbaijani', 'Georgian', 'Armenian',
+        'Kazakh', 'Uzbek', 'Kyrgyz', 'Tajik', 'Turkmen', 'Mongolian'
     ];
 
-    // Search in all sections
-    const textToSearch = fullText;
+    // Create case-insensitive language set for faster lookup
+    const languageSet = new Set(commonLanguages.map(lang => lang.toLowerCase()));
 
+    // Proficiency keywords
+    const proficiencyKeywords = {
+        'native': ['native', 'mother tongue', 'first language', 'L1', 'maternal'],
+        'fluent': ['fluent', 'excellent', 'advanced', 'C2', 'C1', 'proficient', 'expert'],
+        'intermediate': ['intermediate', 'good', 'working knowledge', 'B2', 'B1', 'conversational', 'competent'],
+        'basic': ['basic', 'elementary', 'beginner', 'A2', 'A1', 'limited', 'beginner level']
+    };
+
+    // More precise language patterns - only look for explicit language sections
+    const languagePatterns = [
+        // Pattern: "Languages: English, French, Spanish"
+        /(?:languages?|linguistic\s+skills?|language\s+skills?|spoken\s+languages?)\s*[:=]\s*([^\n.;]+)/gi,
+        // Pattern: "Fluent in: English and French"
+        /(?:fluent\s+in|proficient\s+in|speaks?)\s*[:=]?\s*([^\n.;]+)/gi,
+        // Pattern: "Native language: English"
+        /(?:native\s+language|mother\s+tongue|first\s+language)\s*[:=]\s*([^\n.;]+)/gi,
+        // Pattern in structured lists: "• English (Fluent)"
+        /[•\-*]\s*([A-Za-z]+)\s*\(([^)]+)\)/g,
+        // Pattern: "Language proficiency: English - Advanced"
+        /language\s+proficiency\s*[:=]\s*([^\n.;]+)/gi
+    ];
+
+    // Search for language patterns
     for (const pattern of languagePatterns) {
-        const matches = textToSearch.matchAll(pattern);
+        const matches = [...fullText.matchAll(pattern)];
         for (const match of matches) {
-            const languageText = match[1];
+            let languageText = match[1];
+            if (!languageText) continue;
 
-            // Try to parse individual languages from the text
-            const languageEntries = languageText.split(/[,;|]/);
+            // Clean the language text
+            languageText = languageText.trim().replace(/[.,;:]+$/, '');
 
-            for (const entry of languageEntries) {
-                const cleaned = entry.trim();
-                if (cleaned.length < 3) continue;
+            // Handle structured format like "English (Fluent), French (Basic)"
+            if (languageText.includes('(') && languageText.includes(')')) {
+                const structuredMatches = [...languageText.matchAll(/([A-Za-z]+)\s*\(([^)]+)\)/g)];
+                for (const structMatch of structuredMatches) {
+                    const lang = structMatch[1].trim();
+                    const prof = structMatch[2].trim();
 
-                // Extract language name and proficiency
-                let language = null;
-                let proficiency = 'Not specified';
-
-                // Check for common language names
-                for (const lang of commonLanguages) {
-                    if (cleaned.toLowerCase().includes(lang.toLowerCase())) {
-                        language = lang;
-                        break;
+                    if (languageSet.has(lang.toLowerCase()) && !seenLanguages.has(lang.toLowerCase())) {
+                        seenLanguages.add(lang.toLowerCase());
+                        languages.push({
+                            language: lang,
+                            proficiency: mapProficiency(prof, proficiencyKeywords)
+                        });
                     }
                 }
+            } else {
+                // Handle comma-separated lists: "English, French, Spanish"
+                const languageEntries = languageText.split(/[,;&|]/);
 
-                // If no common language found, try to extract first word as language
-                if (!language) {
+                for (const entry of languageEntries) {
+                    let cleaned = entry.trim();
+                    if (cleaned.length < 2) continue;
+
+                    // Remove common non-language words that might appear
+                    if (/^(and|or|also|including|with|plus|level|skills?|languages?|proficiency)$/i.test(cleaned)) {
+                        continue;
+                    }
+
+                    // Extract language name (first word, capitalize properly)
                     const words = cleaned.split(/\s+/);
-                    if (words.length > 0) {
-                        language = words[0].replace(/[^A-Za-z]/g, '');
-                    }
-                }
+                    const potentialLang = words[0];
 
-                // Extract proficiency
-                for (const [level, keywords] of Object.entries(proficiencyKeywords)) {
-                    for (const keyword of keywords) {
-                        if (cleaned.toLowerCase().includes(keyword.toLowerCase())) {
-                            proficiency = level.charAt(0).toUpperCase() + level.slice(1);
-                            break;
-                        }
-                    }
-                }
+                    // Only accept if it's in our language list
+                    if (languageSet.has(potentialLang.toLowerCase()) && !seenLanguages.has(potentialLang.toLowerCase())) {
+                        seenLanguages.add(potentialLang.toLowerCase());
 
-                // Look for parenthetical proficiency
-                const parenMatch = cleaned.match(/\(([^)]+)\)/);
-                if (parenMatch) {
-                    const parenContent = parenMatch[1].toLowerCase();
-                    for (const [level, keywords] of Object.entries(proficiencyKeywords)) {
-                        for (const keyword of keywords) {
-                            if (parenContent.includes(keyword.toLowerCase())) {
-                                proficiency = level.charAt(0).toUpperCase() + level.slice(1);
-                                break;
-                            }
-                        }
-                    }
-                }
+                        // Extract proficiency from remaining words
+                        const proficiencyText = words.slice(1).join(' ');
+                        const proficiency = mapProficiency(proficiencyText, proficiencyKeywords);
 
-                if (language && !seenLanguages.has(language.toLowerCase())) {
-                    seenLanguages.add(language.toLowerCase());
-                    languages.push({
-                        language: language,
-                        proficiency: proficiency
-                    });
+                        languages.push({
+                            language: potentialLang.charAt(0).toUpperCase() + potentialLang.slice(1).toLowerCase(),
+                            proficiency: proficiency
+                        });
+                    }
                 }
             }
         }
     }
 
-    // Additional pattern for structured language lists
-    const structuredPattern = /([A-Za-z]+)\s*[-–:]\s*([A-Za-z\s]+)/g;
-    const structuredMatches = textToSearch.matchAll(structuredPattern);
+    // Additional pattern for bullet-pointed languages in text
+    const bulletPattern = /(?:^|\n)\s*[•\-*]\s*([A-Za-z]+)(?:\s*[-:]\s*([A-Za-z\s]+))?/gm;
+    const bulletMatches = [...fullText.matchAll(bulletPattern)];
 
-    for (const match of structuredMatches) {
-        const potentialLang = match[1];
-        const potentialProf = match[2];
+    for (const match of bulletMatches) {
+        const lang = match[1];
+        const prof = match[2] || '';
 
-        // Check if it's a language
-        for (const lang of commonLanguages) {
-            if (potentialLang.toLowerCase() === lang.toLowerCase() && !seenLanguages.has(lang.toLowerCase())) {
-                let proficiency = 'Not specified';
-
-                // Check proficiency
-                for (const [level, keywords] of Object.entries(proficiencyKeywords)) {
-                    for (const keyword of keywords) {
-                        if (potentialProf.toLowerCase().includes(keyword.toLowerCase())) {
-                            proficiency = level.charAt(0).toUpperCase() + level.slice(1);
-                            break;
-                        }
-                    }
-                }
-
-                seenLanguages.add(lang.toLowerCase());
-                languages.push({
-                    language: lang,
-                    proficiency: proficiency
-                });
-            }
+        if (languageSet.has(lang.toLowerCase()) && !seenLanguages.has(lang.toLowerCase())) {
+            seenLanguages.add(lang.toLowerCase());
+            languages.push({
+                language: lang.charAt(0).toUpperCase() + lang.slice(1).toLowerCase(),
+                proficiency: mapProficiency(prof, proficiencyKeywords)
+            });
         }
     }
 
     return languages.length > 0 ? languages : [{ language: 'Not specified', proficiency: 'Not specified' }];
+}
+
+/**
+ * Helper function to map proficiency text to standard levels
+ */
+function mapProficiency(proficiencyText, proficiencyKeywords) {
+    if (!proficiencyText) return 'Not specified';
+
+    const lowerText = proficiencyText.toLowerCase();
+
+    for (const [level, keywords] of Object.entries(proficiencyKeywords)) {
+        for (const keyword of keywords) {
+            if (lowerText.includes(keyword.toLowerCase())) {
+                return level.charAt(0).toUpperCase() + level.slice(1);
+            }
+        }
+    }
+
+    return 'Not specified';
 }
 
 module.exports = { processCv, splitExperienceWithPatternRecognition }; 
