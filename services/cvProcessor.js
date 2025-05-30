@@ -1,21 +1,17 @@
-// services/cvProcessor.js (TRUE HTML-BASED PARSING - PHASE 1)
+// services/cvProcessor.js (FINAL ADAPTIVE ENGINE)
+
 const mammoth = require('mammoth');
 const cheerio = require('cheerio');
-const { extractStructuredDataFromSegments } = require('./llmService');
+const { extractStructuredDataFromSegments, segmentCvWithAi, extractCountriesFromText } = require('./llmService');
 
 /**
- * Enhanced HTML extraction for structure preservation
+ * Enhanced HTML extraction for better structure preservation
  */
 async function extractHtmlFromDocx(filePath) {
-    console.log('📄 Extracting document as HTML to preserve structure...');
-    try {
-        const result = await mammoth.convertToHtml({ path: filePath });
-        console.log(`✅ HTML extracted: ${result.value.length} characters`);
-        return result.value;
-    } catch (error) {
-        console.error('❌ Error converting DOCX to HTML:', error);
-        throw new Error('Failed to parse Word document as HTML.');
-    }
+    console.log('📄 Extracting HTML to preserve document structure...');
+    const result = await mammoth.convertToHtml({ path: filePath });
+    console.log(`✅ HTML extracted: ${result.value.length} characters`);
+    return result.value;
 }
 
 /**
@@ -28,20 +24,20 @@ async function extractTextFromDocx(filePath) {
 }
 
 /**
- * TRUE HTML-BASED PARSING: Leverages DOM structure for section detection
- * This is the Phase 1 solution that preserves document hierarchy
+ * ADAPTIVE HTML-BASED PARSING: Leverages DOM structure for section detection
  */
 function parseCvFromHtml(htmlString) {
-    console.log('⚙️ Parsing CV from HTML structure using DOM elements...');
+    console.log('⚙️ Parsing CV from HTML structure using adaptive DOM parsing...');
     const $ = cheerio.load(htmlString);
     const sections = {};
 
-    // Comprehensive list of section headers to search for
+    // --- ENHANCEMENT 1: Expanded dictionary of headers ---
     const sectionHeaders = [
+        "Overview", "Key Skills AND CONTRIBUTIONS", "Employment record", // Added for complex CVs
         "SUMMARY OF QUALIFICATIONS", "PROFESSIONAL EXPERIENCE", "ACADEMIC BACKGROUND",
         "Profile", "PROFILE", "Summary", "SUMMARY", "Personal Statement", "Career Objective",
         "Nationality", "NATIONALITY", "Personal Details", "PERSONAL DETAILS", "Nationality & Languages",
-        "Qualifications", "QUALIFICATIONS", "Education", "EDUCATION", "Academic Background",
+        "Qualifications", "QUALIFICATIONS", "Education", "EDUCATION", "Academic Background", "Affiliations", "Community Activities",
         "Country work experience", "COUNTRY WORK EXPERIENCE", "International Experience", "Country Work Experience",
         "Experience", "EXPERIENCE", "Work Experience", "WORK EXPERIENCE", "Work History", "Highlighted experience",
         "Employment", "EMPLOYMENT", "Career History", "CAREER HISTORY", "Professional Experience",
@@ -49,7 +45,7 @@ function parseCvFromHtml(htmlString) {
         "Skills", "Technical Skills", "Languages"
     ];
 
-    console.log(`🔍 Searching for headers in HTML DOM structure...`);
+    console.log(`🔍 Searching for headers using adaptive parsing with ${sectionHeaders.length} header patterns...`);
 
     // Strategy 1: Look for headers in semantic heading tags (h1, h2, h3, h4, h5, h6)
     $('h1, h2, h3, h4, h5, h6').each((i, el) => {
@@ -88,7 +84,7 @@ function parseCvFromHtml(htmlString) {
         }
     });
 
-    console.log(`✅ HTML parsing complete. Found sections:`, Object.keys(sections));
+    console.log(`✅ Adaptive HTML parsing complete. Found sections:`, Object.keys(sections));
     console.log("Section lengths:", Object.fromEntries(
         Object.entries(sections).map(([key, value]) => [key, value.length])
     ));
@@ -108,9 +104,6 @@ function parseCvFromHtml(htmlString) {
 function collectContentAfterElement($, headerEl, sectionHeaders) {
     let content = '';
     let currentEl = headerEl;
-
-    // Remove the header text itself from content
-    const headerText = headerEl.text().trim();
 
     // Start from the next sibling or parent's next sibling
     currentEl = headerEl.next();
@@ -154,127 +147,102 @@ function collectContentAfterElement($, headerEl, sectionHeaders) {
 }
 
 /**
- * Fallback character position parsing for when HTML parsing fails
+ * ADAPTIVE RULE-BASED PARSING: Enhanced fallback for text-based parsing
  */
-function parseWithCharacterSlicing(text) {
-    console.log("🔄 Using fallback character position parsing...");
+function parseCvWithHeuristics(text) {
+    console.log("⚙️ Starting adaptive rule-based CV parsing (slicing method)...");
 
+    // --- ENHANCEMENT 1: Expanded dictionary of headers ---
     const sectionHeaders = [
-        "SUMMARY OF QUALIFICATIONS", "PROFESSIONAL EXPERIENCE", "ACADEMIC BACKGROUND",
-        "Profile", "PROFILE", "Summary", "SUMMARY", "Personal Statement", "Career Objective",
-        "Nationality", "NATIONALITY", "Personal Details", "PERSONAL DETAILS", "Nationality & Languages",
-        "Qualifications", "QUALIFICATIONS", "Education", "EDUCATION", "Academic Background",
-        "Country work experience", "COUNTRY WORK EXPERIENCE", "International Experience", "Country Work Experience",
-        "Experience", "EXPERIENCE", "Work Experience", "WORK EXPERIENCE", "Work History", "Highlighted experience",
-        "Employment", "EMPLOYMENT", "Career History", "CAREER HISTORY", "Professional Experience",
-        "Publications", "PUBLICATIONS", "Research", "RESEARCH", "Research Publications", "Journal Articles", "Conference Papers",
-        "Skills", "Technical Skills", "Languages"
+        "Overview", "Key Skills AND CONTRIBUTIONS", "Employment record", // Added for complex CVs
+        "Profile", "Summary", "Career Objective", "Personal Statement",
+        "Experience", "Professional Experience", "Work History", "Employment", "Highlighted experience",
+        "Education", "Academic Background", "Qualifications", "Affiliations", "Community Activities",
+        "Publications", "Research Publications", "Journal Articles", "Conference Papers",
+        "Skills", "Technical Skills",
+        "Languages", "Nationality & Languages",
+        "Country Work Experience"
     ];
 
-    const headerPattern = new RegExp(`(${sectionHeaders.join('|')})(?:\\s*\\(.*?\\))?\\s*:?`, 'gi');
-    const matches = [...text.matchAll(headerPattern)];
-
-    if (matches.length < 2) {
-        console.warn(`⚠️ Character slicing found fewer than 2 headers. Returning as Header section.`);
-        return { 'HEADER': text };
-    }
-
+    const headerPattern = new RegExp(`^\\s*(${sectionHeaders.join('|')})\\s*(?:\\(.*?\\))?:?\\s*$`, 'im');
     const sections = {};
-    matches.sort((a, b) => a.index - b.index);
+    const lines = text.split(/\r?\n/);
+    let currentSection = null;
+    let currentContent = [];
 
-    for (let i = 0; i < matches.length; i++) {
-        const currentMatch = matches[i];
-        const nextMatch = matches[i + 1];
+    for (const line of lines) {
+        const match = line.match(headerPattern);
+        if (match) {
+            if (currentSection) sections[currentSection] = currentContent.join('\n').trim();
+            currentSection = match[1].trim();
+            currentContent = [];
+            console.log(`📑 Found section: "${currentSection}"`);
+        } else if (currentSection) {
+            currentContent.push(line);
+        }
+    }
+    if (currentSection) sections[currentSection] = currentContent.join('\n').trim();
 
-        const sectionName = currentMatch[1].trim().toUpperCase();
-        const startIndex = currentMatch.index + currentMatch[0].length;
-        const endIndex = nextMatch ? nextMatch.index : text.length;
-
-        const content = text.substring(startIndex, endIndex).trim();
-        sections[sectionName] = content;
+    if (Object.keys(sections).length < 2) {
+        console.warn(`⚠️ Rule-based parser found fewer than 2 sections. Triggering AI fallback.`);
+        return { __heuristic_parser_failed: true, rawText: text };
     }
 
-    console.log('✅ Character slicing complete. Found sections:', Object.keys(sections));
+    console.log('✅ Advanced parsing complete. Found sections:', Object.keys(sections));
     return sections;
 }
 
 /**
- * Enhanced section consolidation with comprehensive mapping
+ * ENHANCED SECTION CONSOLIDATION: Handles wider range of section variations
  */
 function consolidateSections(parsedSections) {
-    console.log("⚙️ Consolidating sections with enhanced mapping...");
+    console.log("⚙️ Consolidating sections with adaptive mapping...");
 
     // Define comprehensive section mappings
-    const sectionMappings = {
-        // Profile/Summary variations
-        'PROFILE': 'profile',
-        'SUMMARY': 'profile',
-        'PERSONAL STATEMENT': 'profile',
-        'CAREER OBJECTIVE': 'profile',
-        'SUMMARY OF QUALIFICATIONS': 'profile',
-
-        // Personal details variations
-        'NATIONALITY': 'personal_details',
-        'PERSONAL DETAILS': 'personal_details',
-        'NATIONALITY & LANGUAGES': 'personal_details',
-
-        // Qualifications/Education variations
-        'QUALIFICATIONS': 'qualifications',
-        'EDUCATION': 'qualifications',
-        'ACADEMIC BACKGROUND': 'qualifications',
-
-        // Experience variations  
-        'EXPERIENCE': 'experience',
-        'PROFESSIONAL EXPERIENCE': 'experience',
-        'WORK EXPERIENCE': 'experience',
-        'EMPLOYMENT': 'experience',
-        'CAREER HISTORY': 'experience',
-        'WORK HISTORY': 'experience',
-        'HIGHLIGHTED EXPERIENCE': 'experience',
-
-        // Country experience
-        'COUNTRY WORK EXPERIENCE': 'country_experience',
-        'INTERNATIONAL EXPERIENCE': 'country_experience',
-
-        // Publications variations
-        'PUBLICATIONS': 'publications',
-        'RESEARCH': 'publications',
-        'RESEARCH PUBLICATIONS': 'publications',
-        'JOURNAL ARTICLES': 'publications',
-        'CONFERENCE PAPERS': 'publications'
-    };
-
     const consolidated = {
         profile: '',
         personal_details: '',
         country_experience: '',
         qualifications: '',
         publications: '',
-        experience: ''
+        experience: '',
+        skills: ''
     };
 
-    // Process all sections with enhanced mapping
-    for (const [sectionName, content] of Object.entries(parsedSections)) {
-        const upperCaseSectionName = sectionName.toUpperCase();
-        const targetCategory = sectionMappings[upperCaseSectionName];
+    // --- ENHANCEMENT 2: Consolidate from a wider range of sections ---
+    consolidated.profile = parsedSections['PROFILE'] || parsedSections['Profile'] || parsedSections['Overview'] || parsedSections['SUMMARY'] || parsedSections['Summary'] || parsedSections['PERSONAL STATEMENT'] || parsedSections['CAREER OBJECTIVE'] || parsedSections['SUMMARY OF QUALIFICATIONS'] || '';
 
-        if (targetCategory && content.trim()) {
-            if (consolidated[targetCategory]) {
-                consolidated[targetCategory] += '\n\n' + content.trim();
-            } else {
-                consolidated[targetCategory] = content.trim();
-            }
-        } else if (content.trim() && upperCaseSectionName !== 'HEADER') {
-            console.log(`📝 Found unmapped section: "${sectionName}". Adding to experience.`);
-            if (consolidated.experience) {
-                consolidated.experience += '\n\n--- ' + sectionName + ' ---\n' + content.trim();
-            } else {
-                consolidated.experience = '--- ' + sectionName + ' ---\n' + content.trim();
-            }
-        }
-    }
+    consolidated.qualifications = parsedSections['QUALIFICATIONS'] || parsedSections['Qualifications'] || parsedSections['EDUCATION'] || parsedSections['Education'] || parsedSections['ACADEMIC BACKGROUND'] || parsedSections['Academic Background'] || parsedSections['Affiliations'] || parsedSections['Community Activities'] || '';
 
-    console.log("✅ Enhanced consolidation complete. Final sections:");
+    consolidated.publications = parsedSections['PUBLICATIONS'] || parsedSections['Publications'] || parsedSections['RESEARCH'] || parsedSections['Research'] || parsedSections['RESEARCH PUBLICATIONS'] || parsedSections['JOURNAL ARTICLES'] || parsedSections['CONFERENCE PAPERS'] || '';
+
+    consolidated.skills = parsedSections['Key Skills AND CONTRIBUTIONS'] || parsedSections['SKILLS'] || parsedSections['Skills'] || parsedSections['TECHNICAL SKILLS'] || parsedSections['Technical Skills'] || '';
+
+    consolidated.personal_details = parsedSections['NATIONALITY & LANGUAGES'] || parsedSections['Nationality & Languages'] || parsedSections['NATIONALITY'] || parsedSections['PERSONAL DETAILS'] || parsedSections['Languages'] || '';
+
+    consolidated.country_experience = parsedSections['COUNTRY WORK EXPERIENCE'] || parsedSections['Country work experience'] || parsedSections['INTERNATIONAL EXPERIENCE'] || parsedSections['International Experience'] || '';
+
+    // Combine all possible experience-related sections
+    const experienceSources = [
+        parsedSections['HIGHLIGHTED EXPERIENCE'],
+        parsedSections['Highlighted experience'],
+        parsedSections['EXPERIENCE'],
+        parsedSections['Experience'],
+        parsedSections['PROFESSIONAL EXPERIENCE'],
+        parsedSections['Professional Experience'],
+        parsedSections['WORK EXPERIENCE'],
+        parsedSections['Work Experience'],
+        parsedSections['EMPLOYMENT'],
+        parsedSections['Employment'],
+        parsedSections['CAREER HISTORY'],
+        parsedSections['Career History'],
+        parsedSections['WORK HISTORY'],
+        parsedSections['Work History'],
+        parsedSections['Employment record']
+    ];
+    consolidated.experience = experienceSources.filter(Boolean).join('\n\n');
+
+    console.log("✅ Adaptive consolidation complete. Final sections:");
     Object.entries(consolidated).forEach(([key, value]) => {
         console.log(`- ${key}: ${value.length} characters`);
     });
@@ -283,46 +251,63 @@ function consolidateSections(parsedSections) {
 }
 
 /**
- * Main processing function with TRUE HTML-based parsing (Phase 1)
+ * MAIN PROCESSING FUNCTION: Adaptive CV processing with multiple strategies
  */
 async function processCv(filePath, progressCallback = null) {
     try {
-        if (progressCallback) progressCallback(5, 'Extracting HTML structure from document...');
+        if (progressCallback) progressCallback(5, 'Starting adaptive CV processing...');
+
+        console.log(`🔄 Starting adaptive CV processing for: ${filePath}`);
 
         // PRIMARY: HTML-based parsing for structure preservation
         let parsedSections;
+        let consolidatedSections;
+
         try {
             const htmlContent = await extractHtmlFromDocx(filePath);
             parsedSections = parseCvFromHtml(htmlContent);
 
             // Check if HTML parsing succeeded
             if (parsedSections.__heuristic_parser_failed) {
-                console.log(`⚠️ HTML parsing failed, falling back to character slicing...`);
-                parsedSections = parseWithCharacterSlicing(parsedSections.rawText);
+                console.log(`⚠️ HTML parsing failed, falling back to rule-based parsing...`);
+                parsedSections = parseCvWithHeuristics(parsedSections.rawText);
+
+                if (parsedSections.__heuristic_parser_failed) {
+                    console.log("🚦 Rule-based parsing also failed, falling back to AI segmentation...");
+                    consolidatedSections = await segmentCvWithAi(parsedSections.rawText);
+                } else {
+                    consolidatedSections = consolidateSections(parsedSections);
+                }
             } else {
                 console.log(`🎉 HTML parsing successful! Found ${Object.keys(parsedSections).length} sections`);
+                consolidatedSections = consolidateSections(parsedSections);
             }
         } catch (htmlError) {
             console.log(`⚠️ HTML extraction failed: ${htmlError.message}`);
             console.log(`🔄 Falling back to raw text extraction...`);
 
             const rawText = await extractTextFromDocx(filePath);
-            parsedSections = parseWithCharacterSlicing(rawText);
+            parsedSections = parseCvWithHeuristics(rawText);
+
+            if (parsedSections.__heuristic_parser_failed) {
+                console.log("🚦 All parsing methods failed, using AI segmentation...");
+                consolidatedSections = await segmentCvWithAi(parsedSections.rawText);
+            } else {
+                consolidatedSections = consolidateSections(parsedSections);
+            }
         }
 
-        if (progressCallback) progressCallback(15, 'Consolidating sections...');
+        if (progressCallback) progressCallback(15, 'Sections identified and consolidated...');
 
-        const finalSegments = consolidateSections(parsedSections);
+        // --- ENHANCEMENT 3: More flexible experience splitting ---
+        // This new regex splits on a newline that is followed by EITHER a 4-digit year OR the text "From–To:".
+        const experienceSplitter = /\n(?=\d{4}|From–To:)/i;
+        const experienceEntries = consolidatedSections.experience
+            .split(experienceSplitter)
+            .filter(entry => entry.trim().length > 10); // Filter out small fragments
 
-        // Pre-split experience entries using enhanced pattern matching
-        if (progressCallback) progressCallback(25, 'Pre-splitting experience entries...');
-
-        const experienceEntries = finalSegments.experience
-            .split(/\n(?=\d{4})/) // Split on newlines followed by 4-digit years
-            .filter(entry => entry.trim() !== "")
-            .map(entry => entry.trim());
-
-        console.log(`🔍 Pre-split the consolidated experience block into ${experienceEntries.length} individual entries.`);
+        console.log(`✅ Experience section consolidated: ${consolidatedSections.experience.length} characters`);
+        console.log(`✅ Pre-split consolidated experience block into ${experienceEntries.length} individual entries using adaptive splitting.`);
 
         if (experienceEntries.length > 0) {
             console.log("📋 Sample entries:");
@@ -331,12 +316,22 @@ async function processCv(filePath, progressCallback = null) {
             });
         }
 
+        if (progressCallback) progressCallback(25, 'Experience entries split and analyzed...');
+
+        // --- ENHANCEMENT 4: Add targeted data extraction for embedded data ---
+        // If country data wasn't found in a dedicated section, we ask the AI to find it in the profile.
+        if (!consolidatedSections.country_experience && consolidatedSections.profile) {
+            console.log('🕵️‍♀️ Country Experience section not found. Searching for embedded country data in profile...');
+            if (progressCallback) progressCallback(28, 'Extracting embedded country data...');
+            consolidatedSections.country_experience = await extractCountriesFromText(consolidatedSections.profile);
+        }
+
         if (progressCallback) progressCallback(30, 'Sending data to AI for extraction...');
 
         // Enhanced AI processing with pre-split entries
-        const structuredData = await extractStructuredDataFromSegments(finalSegments, experienceEntries, progressCallback);
+        const structuredData = await extractStructuredDataFromSegments(consolidatedSections, experienceEntries, progressCallback);
 
-        console.log('🎉 TRUE HTML-based CV processing completed successfully!');
+        console.log('🎉 ADAPTIVE CV processing completed successfully!');
         console.log('📊 Final structured data preview:');
         console.log(`- Profile: ${structuredData.profile ? structuredData.profile.substring(0, 50) + '...' : 'Not extracted'}`);
         console.log(`- Experience entries: ${structuredData.experience ? structuredData.experience.length : 0}`);
@@ -346,7 +341,7 @@ async function processCv(filePath, progressCallback = null) {
         return structuredData;
 
     } catch (error) {
-        console.error('❌ Error in TRUE HTML-based CV processing:', error);
+        console.error('❌ Error in ADAPTIVE CV processing:', error);
         throw error;
     }
 }
