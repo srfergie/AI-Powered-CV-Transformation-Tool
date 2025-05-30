@@ -27,7 +27,9 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 const uploadDir = path.join(__dirname, 'uploads');
+const outputDir = path.join(__dirname, 'output');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
+if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir);
 
 const upload = multer({ dest: uploadDir });
 
@@ -38,6 +40,30 @@ app.get('/health', (req, res) => {
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || 'development',
         version: '1.0.0'
+    });
+});
+
+// Download endpoint for generated CVs
+app.get('/api/resume/:id/download', (req, res) => {
+    const resumeId = req.params.id;
+    const filePath = path.join(outputDir, `CV_${resumeId}.docx`);
+
+    if (!fs.existsSync(filePath)) {
+        return res.status(404).json({
+            error: 'File not found',
+            message: 'The requested CV file does not exist or has expired.'
+        });
+    }
+
+    res.setHeader('Content-Disposition', `attachment; filename=CV_IODPARC_${resumeId}.docx`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+
+    fileStream.on('end', () => {
+        // Optional: Clean up file after download
+        // fs.unlinkSync(filePath);
     });
 });
 
@@ -82,6 +108,11 @@ app.post('/api/resume/upload-progress', upload.single('resume'), async (req, res
 
         const docxBuffer = await generateIodParcDocx(structuredData);
 
+        // Generate unique ID and save file
+        const resumeId = Date.now();
+        const outputPath = path.join(outputDir, `CV_${resumeId}.docx`);
+        fs.writeFileSync(outputPath, docxBuffer);
+
         sendProgress('complete', 100, '🎉 CV transformation completed successfully!');
 
         // Send final result with structured data
@@ -89,10 +120,11 @@ app.post('/api/resume/upload-progress', upload.single('resume'), async (req, res
             type: 'result',
             success: true,
             data: {
-                id: Date.now(), // Simple ID for now
+                id: resumeId,
                 data: structuredData,
                 fileName: req.file.originalname,
-                fileType: 'docx'
+                fileType: 'docx',
+                downloadUrl: `/api/resume/${resumeId}/download`
             }
         });
         res.write(`data: ${finalResult}\n\n`);
