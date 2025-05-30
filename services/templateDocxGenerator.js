@@ -7,15 +7,13 @@ const {
 
 // Template-specific formatting constants (matching TEMPLATE.docx exactly)
 const TEMPLATE_COLORS = {
-    HEADER_BLUE: "2c5aa0",  // IOD PARC Blue for section headers
-    TEXT_BLACK: "000000",   // Black for regular text
-    NAME_BLACK: "000000"    // Black for name (not blue like current implementation)
+    TEXT_BLACK: "000000",   // Black for all text (headers and content)
 };
 
 const TEMPLATE_FONTS = {
     FAMILY: "Calibri",      // Standard font family
     SIZES: {
-        NAME: 48,           // 24pt for name (larger than current)
+        NAME: 48,           // 24pt for name
         SECTION_HEADER: 22, // 11pt for section headers  
         CONTENT: 22,        // 11pt for content text
         FOOTER: 18          // 9pt for footer
@@ -46,8 +44,8 @@ function createTemplateHeaderCell(text, options = {}) {
                 text: text,
                 font: TEMPLATE_FONTS.FAMILY,
                 size: TEMPLATE_FONTS.SIZES.SECTION_HEADER,
-                bold: true,
-                color: TEMPLATE_COLORS.HEADER_BLUE,
+                bold: true,  // Headers are bold in template
+                color: TEMPLATE_COLORS.TEXT_BLACK,
             })],
             alignment: options.alignment || AlignmentType.LEFT,
             spacing: { after: options.spacing || 0 }
@@ -77,6 +75,25 @@ function createTemplateHeaderCell(text, options = {}) {
  * Create a content cell with exact template formatting
  */
 function createTemplateContentCell(content, options = {}) {
+    if (!content || content === "") {
+        // Return empty cell for blank content
+        return new TableCell({
+            children: [new Paragraph({ text: "" })],
+            verticalAlign: VerticalAlign.TOP,
+            width: {
+                size: options.width || TEMPLATE_COLUMNS.CONTENT_WIDTH,
+                type: WidthType.PERCENTAGE
+            },
+            columnSpan: options.columnSpan || 1,
+            borders: {
+                top: { style: BorderStyle.NONE },
+                bottom: { style: BorderStyle.NONE },
+                left: { style: BorderStyle.NONE },
+                right: { style: BorderStyle.NONE }
+            }
+        });
+    }
+
     const paragraphs = Array.isArray(content) ? content : [content];
 
     return new TableCell({
@@ -144,10 +161,10 @@ function createNameRow(name) {
             new TableCell({
                 children: [new Paragraph({
                     children: [new TextRun({
-                        text: name || "CV Applicant",
+                        text: name || "",
                         font: TEMPLATE_FONTS.FAMILY,
                         size: TEMPLATE_FONTS.SIZES.NAME,
-                        color: TEMPLATE_COLORS.NAME_BLACK,
+                        color: TEMPLATE_COLORS.TEXT_BLACK,
                         bold: false  // Template shows name is not bold
                     })],
                     alignment: AlignmentType.LEFT,
@@ -187,7 +204,8 @@ function createSectionHeaderRow(title) {
                         size: TEMPLATE_FONTS.SIZES.NAME, // Same size as name for major sections
                         color: TEMPLATE_COLORS.TEXT_BLACK,
                         bold: false
-                    })]
+                    })],
+                    spacing: { before: 200, after: 100 }
                 })],
                 columnSpan: 4,
                 width: { size: 100, type: WidthType.PERCENTAGE },
@@ -210,9 +228,54 @@ function createSectionHeaderRow(title) {
 }
 
 /**
- * Create experience entry row (date + content spanning 3 columns)
+ * Create experience entry row with proper formatting
  */
 function createExperienceRow(dateText, content) {
+    // Parse content to separate title, role/client/location, and description
+    const lines = content.split('\n');
+    const children = [];
+
+    lines.forEach((line, index) => {
+        if (index === 0 && line.trim()) {
+            // First line (title) is bold
+            children.push(new Paragraph({
+                children: [new TextRun({
+                    text: line,
+                    font: TEMPLATE_FONTS.FAMILY,
+                    size: TEMPLATE_FONTS.SIZES.CONTENT,
+                    color: TEMPLATE_COLORS.TEXT_BLACK,
+                    bold: true
+                })],
+                spacing: { after: 60 }
+            }));
+        } else if (index === 1 && line.includes('|')) {
+            // Role/Client/Location line is bold
+            children.push(new Paragraph({
+                children: [new TextRun({
+                    text: line,
+                    font: TEMPLATE_FONTS.FAMILY,
+                    size: TEMPLATE_FONTS.SIZES.CONTENT,
+                    color: TEMPLATE_COLORS.TEXT_BLACK,
+                    bold: true
+                })],
+                spacing: { after: 120 }
+            }));
+        } else if (line.trim()) {
+            // Regular description text
+            children.push(new Paragraph({
+                children: [new TextRun({
+                    text: line,
+                    font: TEMPLATE_FONTS.FAMILY,
+                    size: TEMPLATE_FONTS.SIZES.CONTENT,
+                    color: TEMPLATE_COLORS.TEXT_BLACK,
+                    bold: false
+                })],
+                alignment: AlignmentType.JUSTIFIED,
+                spacing: { after: 120 }
+            }));
+        }
+    });
+
     return new TableRow({
         children: [
             // Date cell
@@ -241,9 +304,23 @@ function createExperienceRow(dateText, content) {
                 }
             }),
             // Content spanning 3 columns
-            createTemplateContentCell(content, {
+            new TableCell({
+                children: children,
                 columnSpan: 3,
-                width: TEMPLATE_COLUMNS.EXP_CONTENT_WIDTH
+                width: { size: TEMPLATE_COLUMNS.EXP_CONTENT_WIDTH, type: WidthType.PERCENTAGE },
+                verticalAlign: VerticalAlign.TOP,
+                margins: {
+                    top: 100,
+                    bottom: 100,
+                    left: 150,
+                    right: 150
+                },
+                borders: {
+                    top: { style: BorderStyle.NONE },
+                    bottom: { style: BorderStyle.NONE },
+                    left: { style: BorderStyle.NONE },
+                    right: { style: BorderStyle.NONE }
+                }
             })
         ]
     });
@@ -261,13 +338,13 @@ async function generateTemplateMatchingDocx(data) {
         const applicantName = data.personalDetails?.name ||
             data.name ||
             data.personalInfo?.name ||
-            "CV Applicant";
+            "";
 
         // 1. Name row (matches template exactly)
         allRows.push(createNameRow(applicantName));
 
-        // 2. Profile section
-        if (data.profile) {
+        // 2. Profile section - only add if content exists
+        if (data.profile && data.profile.trim()) {
             allRows.push(new TableRow({
                 children: [
                     createTemplateHeaderCell("Profile"),
@@ -276,54 +353,80 @@ async function generateTemplateMatchingDocx(data) {
             }));
         }
 
-        // 3. Nationality & Languages (split into two cells like template)
-        const nationality = data.nationality ||
-            data.personalDetails?.nationality ||
-            "Not specified";
-
+        // 3. Nationality & Languages - always show structure
+        const nationality = data.nationality || data.personalDetails?.nationality || "";
         const languageString = (data.languages || [])
             .map(l => typeof l === 'string' ? l : `${l.language} (${l.proficiency})`)
-            .join(', ') || 'Not specified';
+            .join(', ');
 
         allRows.push(new TableRow({
             children: [
                 createTemplateHeaderCell("Nationality"),
                 createTemplateContentCell(nationality, { width: 30 }),
-                createTemplateContentCell("Languages", { width: 15, bold: true }),
+                createTemplateContentCell("Languages", { width: 15, bold: false }), // Not bold in template
                 createTemplateContentCell(languageString, { width: 35 })
             ]
         }));
 
-        // 4. Qualifications
+        // 4. Qualifications - only add if content exists
         if (data.qualifications && data.qualifications.length > 0) {
-            const qualContent = data.qualifications.map(q => {
-                const year = q.year || q.graduationDate || '';
-                const degree = q.degree || q.qualification || '';
-                const institution = q.institution || q.university || '';
-                const details = q.details || q.description || '';
+            const qualParagraphs = [];
 
-                let qualText = '';
-                if (degree) qualText += `${degree}`;
-                if (details) qualText += ` (${details})`;
-                if (year) qualText += `, ${year}`;
-                if (institution) qualText += `, ${institution}`;
+            data.qualifications.forEach(q => {
+                if (q.degree || q.qualification) {
+                    const degree = q.degree || q.qualification || '';
+                    const details = q.details || q.description || '';
+                    const year = q.year || q.graduationDate || '';
+                    const institution = q.institution || q.university || '';
 
-                return qualText;
-            }).filter(q => q.trim()).join('\n\n');
+                    // First line with degree is bold
+                    let firstLine = degree;
+                    if (details) firstLine += ` (${details})`;
+                    if (year) firstLine += `, ${year}`;
+                    if (institution) firstLine += `, ${institution}`;
 
-            if (qualContent) {
+                    qualParagraphs.push(new Paragraph({
+                        children: [new TextRun({
+                            text: firstLine,
+                            font: TEMPLATE_FONTS.FAMILY,
+                            size: TEMPLATE_FONTS.SIZES.CONTENT,
+                            color: TEMPLATE_COLORS.TEXT_BLACK,
+                            bold: true  // Degree names are bold in template
+                        })],
+                        spacing: { after: 120 }
+                    }));
+                }
+            });
+
+            if (qualParagraphs.length > 0) {
                 allRows.push(new TableRow({
                     children: [
                         createTemplateHeaderCell("Qualifications"),
-                        createTemplateContentCell(qualContent, { columnSpan: 3 })
+                        new TableCell({
+                            children: qualParagraphs,
+                            columnSpan: 3,
+                            verticalAlign: VerticalAlign.TOP,
+                            width: { size: 80, type: WidthType.PERCENTAGE },
+                            margins: {
+                                top: 100,
+                                bottom: 100,
+                                left: 150,
+                                right: 150
+                            },
+                            borders: {
+                                top: { style: BorderStyle.NONE },
+                                bottom: { style: BorderStyle.NONE },
+                                left: { style: BorderStyle.NONE },
+                                right: { style: BorderStyle.NONE }
+                            }
+                        })
                     ]
                 }));
             }
         }
 
-        // 5. Country work experience
-        const countryExp = (data.countryWorkExperience || data.countryExperience || [])
-            .join(', ') || 'Not specified';
+        // 5. Country work experience - always show structure
+        const countryExp = (data.countryWorkExperience || data.countryExperience || []).join(', ');
 
         allRows.push(new TableRow({
             children: [
@@ -339,26 +442,42 @@ async function generateTemplateMatchingDocx(data) {
 
             // Experience entries
             data.experience.forEach(exp => {
-                const dateRange = exp.startDate && exp.endDate
-                    ? `${exp.startDate} - ${exp.endDate}`
-                    : exp.date || "";
+                const dateRange = exp.dates ||
+                    (exp.startDate && exp.endDate ? `${exp.startDate} - ${exp.endDate}` : '') ||
+                    exp.date || "";
 
                 // Format experience content like template
                 let expContent = '';
-                if (exp.position || exp.title) {
-                    expContent += `${exp.position || exp.title}`;
-                }
-                if (exp.client || exp.company) {
-                    expContent += `\n${exp.role || 'Consultant'} | Client: ${exp.client || exp.company}`;
-                }
-                if (exp.location) {
-                    expContent += ` | Location: ${exp.location}`;
-                }
-                if (exp.description) {
-                    expContent += `\n\n${exp.description}`;
+
+                // Title line
+                if (exp.position || exp.title || exp.role) {
+                    expContent += exp.position || exp.title || exp.role;
                 }
 
-                allRows.push(createExperienceRow(dateRange, expContent));
+                // Role/Client/Location line
+                const roleClientLocation = [];
+                if (exp.role && !expContent.includes(exp.role)) {
+                    roleClientLocation.push(`Role: ${exp.role}`);
+                }
+                if (exp.client || exp.company || exp.organization) {
+                    roleClientLocation.push(`Client: ${exp.client || exp.company || exp.organization}`);
+                }
+                if (exp.location) {
+                    roleClientLocation.push(`Location: ${exp.location}`);
+                }
+
+                if (roleClientLocation.length > 0) {
+                    expContent += '\n' + roleClientLocation.join(' | ');
+                }
+
+                // Description
+                if (exp.description || exp.details || exp.responsibilities) {
+                    expContent += '\n' + (exp.description || exp.details || exp.responsibilities);
+                }
+
+                if (expContent.trim()) {
+                    allRows.push(createExperienceRow(dateRange, expContent));
+                }
             });
         }
 
@@ -367,19 +486,30 @@ async function generateTemplateMatchingDocx(data) {
             allRows.push(createSectionHeaderRow("Employment:"));
 
             data.employment.forEach(emp => {
-                const dateRange = emp.startDate && emp.endDate
-                    ? `${emp.startDate} - ${emp.endDate}`
-                    : emp.date || "";
+                const dateRange = emp.dates ||
+                    (emp.startDate && emp.endDate ? `${emp.startDate} - ${emp.endDate}` : '') ||
+                    emp.date || "";
 
                 let empContent = '';
+
+                // Position line (bold)
                 if (emp.position || emp.title) {
-                    empContent += `${emp.position || emp.title}`;
-                }
-                if (emp.company || emp.employer) {
-                    empContent += `\n${emp.company || emp.employer}`;
+                    empContent += emp.position || emp.title;
                 }
 
-                allRows.push(createExperienceRow(dateRange, empContent));
+                // Company line
+                if (emp.company || emp.employer || emp.organization) {
+                    empContent += '\n' + (emp.company || emp.employer || emp.organization);
+                }
+
+                // Location if available
+                if (emp.location) {
+                    empContent += ', ' + emp.location;
+                }
+
+                if (empContent.trim()) {
+                    allRows.push(createExperienceRow(dateRange, empContent));
+                }
             });
         }
 
@@ -387,45 +517,70 @@ async function generateTemplateMatchingDocx(data) {
         if (data.publications && data.publications.length > 0) {
             allRows.push(createSectionHeaderRow("Publications:"));
 
-            const pubContent = data.publications.map(pub => {
+            const pubParagraphs = data.publications.map(pub => {
                 let pubText = '';
-                if (pub.authors) pubText += pub.authors;
-                if (pub.year || pub.date) pubText += ` (${pub.year || pub.date})`;
-                if (pub.title) pubText += `. '${pub.title}'`;
-                if (pub.journal || pub.publication) pubText += `. ${pub.journal || pub.publication}`;
-                if (pub.url) pubText += ` ${pub.url}`;
-                return pubText;
-            }).filter(p => p.trim()).join('\n\n');
 
-            allRows.push(new TableRow({
-                children: [
-                    new TableCell({
-                        children: [new Paragraph({
-                            children: [new TextRun({
-                                text: pubContent,
-                                font: TEMPLATE_FONTS.FAMILY,
-                                size: TEMPLATE_FONTS.SIZES.CONTENT,
-                                color: TEMPLATE_COLORS.TEXT_BLACK
-                            })]
+                // Try to use citation if available
+                if (pub.citation) {
+                    pubText = pub.citation;
+                } else {
+                    // Build citation from components
+                    if (pub.authors) pubText += pub.authors;
+                    if (pub.year || pub.date) {
+                        const year = pub.year || pub.date;
+                        pubText += pubText ? ` (${year})` : `(${year})`;
+                    }
+                    if (pub.title) {
+                        pubText += pubText ? `. '${pub.title}'` : `'${pub.title}'`;
+                    }
+                    if (pub.journal || pub.publication || pub.venue) {
+                        const venue = pub.journal || pub.publication || pub.venue;
+                        pubText += pubText ? `. ${venue}` : venue;
+                    }
+                    if (pub.url) {
+                        pubText += pubText ? ` ${pub.url}` : pub.url;
+                    }
+                }
+
+                // Only create paragraph if there's actual content
+                if (pubText && pubText.trim()) {
+                    return new Paragraph({
+                        children: [new TextRun({
+                            text: pubText,
+                            font: TEMPLATE_FONTS.FAMILY,
+                            size: TEMPLATE_FONTS.SIZES.CONTENT,
+                            color: TEMPLATE_COLORS.TEXT_BLACK
                         })],
-                        columnSpan: 4,
-                        width: { size: 100, type: WidthType.PERCENTAGE },
-                        verticalAlign: VerticalAlign.TOP,
-                        margins: {
-                            top: 100,
-                            bottom: 100,
-                            left: 150,
-                            right: 150
-                        },
-                        borders: {
-                            top: { style: BorderStyle.NONE },
-                            bottom: { style: BorderStyle.NONE },
-                            left: { style: BorderStyle.NONE },
-                            right: { style: BorderStyle.NONE }
-                        }
-                    })
-                ]
-            }));
+                        spacing: { after: 120 }
+                    });
+                }
+                return null;
+            }).filter(p => p !== null); // Filter out null values
+
+            if (pubParagraphs.length > 0) {
+                allRows.push(new TableRow({
+                    children: [
+                        new TableCell({
+                            children: pubParagraphs,
+                            columnSpan: 4,
+                            width: { size: 100, type: WidthType.PERCENTAGE },
+                            verticalAlign: VerticalAlign.TOP,
+                            margins: {
+                                top: 100,
+                                bottom: 100,
+                                left: 150,
+                                right: 150
+                            },
+                            borders: {
+                                top: { style: BorderStyle.NONE },
+                                bottom: { style: BorderStyle.NONE },
+                                left: { style: BorderStyle.NONE },
+                                right: { style: BorderStyle.NONE }
+                            }
+                        })
+                    ]
+                }));
+            }
         }
 
         // Create the main table with exact template structure
@@ -500,23 +655,19 @@ async function generateTemplateMatchingDocx(data) {
                         }
                     }
                 },
-                children: documentChildren,
-            }],
+                children: documentChildren
+            }]
         });
 
+        // Generate buffer
         const buffer = await Packer.toBuffer(doc);
+        console.log('✅ Template-matching DOCX generated successfully');
         return buffer;
 
     } catch (error) {
-        console.error('Error generating template-matching DOCX:', error);
+        console.error('❌ Error generating template DOCX:', error);
         throw error;
     }
 }
 
-module.exports = {
-    generateTemplateMatchingDocx,
-    TEMPLATE_COLORS,
-    TEMPLATE_FONTS,
-    TEMPLATE_SPACING,
-    TEMPLATE_COLUMNS
-}; 
+module.exports = { generateTemplateMatchingDocx }; 

@@ -1,4 +1,4 @@
-// services/cvProcessor.js (FINAL ADAPTIVE ENGINE - REFINED AND INTEGRATED)
+// services/cvProcessor.js (ENHANCED WITH DEDUPLICATION)
 
 const mammoth = require('mammoth');
 const cheerio = require('cheerio');
@@ -29,7 +29,7 @@ async function extractTextFromPdf(filePath) {
 }
 
 /**
- * Comprehensive section dictionaries for CV parsing
+ * Enhanced comprehensive section dictionaries for CV parsing - IOD PARC specific
  */
 const SECTION_DICTIONARIES = {
     employment: [
@@ -50,35 +50,27 @@ const SECTION_DICTIONARIES = {
         'EMPLOYMENT BACKGROUND', 'Employment Background', 'employment background',
         'JOB BACKGROUND', 'Job Background', 'job background',
         'SUMMARY OF EMPLOYMENT', 'Summary of Employment', 'summary of employment',
-        'CURRENT EMPLOYMENT', 'Current Employment', 'current employment'
+        'CURRENT EMPLOYMENT', 'Current Employment', 'current employment',
+        'PAST EMPLOYMENT', 'Past Employment', 'past employment',
+        'EMPLOYMENT DETAILS', 'Employment Details', 'employment details',
+        'CAREER PROGRESSION', 'Career Progression', 'career progression',
+        'PROFESSIONAL APPOINTMENTS', 'Professional Appointments', 'professional appointments',
+        'POSTS HELD', 'Posts Held', 'posts held',
+        'EMPLOYMENT POSITIONS', 'Employment Positions', 'employment positions',
+        'FULL-TIME EMPLOYMENT', 'Full-time Employment', 'full-time employment',
+        'PERMANENT POSITIONS', 'Permanent Positions', 'permanent positions'
     ],
 
     experience: [
         'EXPERIENCE', 'Experience', 'experience',
+        'WORK EXPERIENCE', 'Work Experience', 'work experience',
         'PROFESSIONAL EXPERIENCE', 'Professional Experience', 'professional experience',
         'RELEVANT EXPERIENCE', 'Relevant Experience', 'relevant experience',
-        'OTHER RELEVANT EXPERIENCE', 'Other relevant experience', 'other relevant experience',
-        'PREVIOUS EXPERIENCE', 'Previous Experience', 'previous experience',
-        'ADDITIONAL EXPERIENCE', 'Additional Experience', 'additional experience',
-        'WORK EXPERIENCE', 'Work Experience', 'work experience',
-        'JOB EXPERIENCE', 'Job Experience', 'job experience',
-        'CAREER EXPERIENCE', 'Career Experience', 'career experience',
-        'PROFESSIONAL BACKGROUND', 'Professional Background', 'professional background',
-        'WORK BACKGROUND', 'Work Background', 'work background',
-        'CAREER PROGRESSION', 'Career Progression', 'career progression',
-        'CAREER SUMMARY', 'Career Summary', 'career summary',
-        'WORK SUMMARY', 'Work Summary', 'work summary',
-        'PROFESSIONAL SUMMARY', 'Professional Summary', 'professional summary',
-        'ROLES AND RESPONSIBILITIES', 'Roles and Responsibilities', 'roles and responsibilities',
-        'HIGHLIGHTED EXPERIENCE', 'Highlighted experience', 'highlighted experience',
-        'KEY EXPERIENCE', 'Key Experience', 'key experience',
-        'OCCUPATIONAL EXPERIENCE', 'Occupational Experience', 'occupational experience',
-        'CONSULTING EXPERIENCE', 'Consulting Experience', 'consulting experience',
-        'PROJECT EXPERIENCE', 'Project Experience', 'project experience',
-        'VOLUNTEER EXPERIENCE', 'Volunteer Experience', 'volunteer experience',
-        'RELATED EXPERIENCE', 'Related Experience', 'related experience',
-        'EXPERIENCES', 'Experiences', 'experiences',
-        'ASSIGNMENTS', 'Assignments', 'assignments',
+        'CAREER HIGHLIGHTS', 'Career Highlights', 'career highlights',
+        'CAREER PROFILE', 'Career Profile', 'career profile',
+        'RECENT PROFESSIONAL EXPERIENCE', 'Recent Professional Experience', 'recent professional experience',
+        'WORK AND EXPERIENCE', 'Work and Experience', 'work and experience',
+        'KEY PROFESSIONAL ASSIGNMENTS', 'Key Professional Assignments', 'key professional assignments',
         'SELECTED PROFESSIONAL EXPERIENCE', 'Selected Professional Experience', 'selected professional experience',
         'VOLUNTEER WORK', 'Volunteer work', 'volunteer work',
         'SHORT-TERM ASSIGNMENTS/CONSULTANCIES', 'Short-term assignments/consultancies', 'short-term assignments/consultancies',
@@ -112,7 +104,33 @@ const SECTION_DICTIONARIES = {
         'LEADERSHIP EXPERIENCE', 'Leadership experience', 'leadership experience',
         'TEAM LEADERSHIP', 'Team leadership', 'team leadership',
         'PROJECT MANAGEMENT', 'Project management', 'project management',
-        'PROGRAMME MANAGEMENT', 'Programme management', 'programme management'
+        'PROGRAMME MANAGEMENT', 'Programme management', 'programme management',
+        'CONTRACT WORK', 'Contract Work', 'contract work',
+        'CONSULTING EXPERIENCE', 'Consulting Experience', 'consulting experience',
+        'FREELANCE WORK', 'Freelance Work', 'freelance work',
+        'INDEPENDENT CONSULTANCY', 'Independent Consultancy', 'independent consultancy',
+        'SHORT TERM CONSULTANCIES', 'Short Term Consultancies', 'short term consultancies',
+        'PROJECT EXPERIENCE', 'Project Experience', 'project experience',
+        'ASSIGNMENT EXPERIENCE', 'Assignment Experience', 'assignment experience',
+        'TECHNICAL ASSISTANCE', 'Technical Assistance', 'technical assistance',
+        'CAPACITY BUILDING EXPERIENCE', 'Capacity Building Experience', 'capacity building experience',
+        'OTHER RELEVANT EXPERIENCE', 'Other relevant experience', 'other relevant experience',
+        'PREVIOUS EXPERIENCE', 'Previous Experience', 'previous experience',
+        'ADDITIONAL EXPERIENCE', 'Additional Experience', 'additional experience',
+        'JOB EXPERIENCE', 'Job Experience', 'job experience',
+        'CAREER EXPERIENCE', 'Career Experience', 'career experience',
+        'PROFESSIONAL BACKGROUND', 'Professional Background', 'professional background',
+        'WORK BACKGROUND', 'Work Background', 'work background',
+        'CAREER SUMMARY', 'Career Summary', 'career summary',
+        'WORK SUMMARY', 'Work Summary', 'work summary',
+        'PROFESSIONAL SUMMARY', 'Professional Summary', 'professional summary',
+        'ROLES AND RESPONSIBILITIES', 'Roles and Responsibilities', 'roles and responsibilities',
+        'HIGHLIGHTED EXPERIENCE', 'Highlighted experience', 'highlighted experience',
+        'KEY EXPERIENCE', 'Key Experience', 'key experience',
+        'OCCUPATIONAL EXPERIENCE', 'Occupational Experience', 'occupational experience',
+        'RELATED EXPERIENCE', 'Related Experience', 'related experience',
+        'EXPERIENCES', 'Experiences', 'experiences',
+        'ASSIGNMENTS', 'Assignments', 'assignments'
     ],
 
     profile: [
@@ -126,7 +144,19 @@ const SECTION_DICTIONARIES = {
         'PROFESSIONAL PROFILE', 'Professional Profile', 'professional profile',
         'PERSONAL PROFILE', 'Personal Profile', 'personal profile',
         'ABOUT ME', 'About Me', 'about me',
-        'INTRODUCTION', 'Introduction', 'introduction'
+        'INTRODUCTION', 'Introduction', 'introduction',
+        'CAREER SUMMARY', 'Career Summary', 'career summary',
+        'PROFESSIONAL SUMMARY', 'Professional Summary', 'professional summary',
+        'EXPERTISE SUMMARY', 'Expertise Summary', 'expertise summary',
+        'BACKGROUND', 'Background', 'background',
+        'PROFESSIONAL BACKGROUND', 'Professional Background', 'professional background',
+        'BIO', 'Bio', 'bio',
+        'BIOGRAPHY', 'Biography', 'biography',
+        'ABOUT', 'About', 'about',
+        'OBJECTIVE', 'Objective', 'objective',
+        'STATEMENT', 'Statement', 'statement',
+        'CAREER OVERVIEW', 'Career Overview', 'career overview',
+        'PROFESSIONAL OVERVIEW', 'Professional Overview', 'professional overview'
     ],
 
     qualifications: [
@@ -147,7 +177,30 @@ const SECTION_DICTIONARIES = {
         'MEMBERSHIPS', 'Memberships', 'memberships',
         'POST-GRADUATE', 'Post-graduate', 'post-graduate',
         'DIPLOMA', 'Diploma', 'diploma',
-        'BA', 'Ba', 'ba'
+        'BA', 'Ba', 'ba',
+        'ACADEMIC RECORD', 'Academic Record', 'academic record',
+        'EDUCATION AND TRAINING', 'Education and Training', 'education and training',
+        'FORMAL EDUCATION', 'Formal Education', 'formal education',
+        'UNIVERSITY EDUCATION', 'University Education', 'university education',
+        'PROFESSIONAL QUALIFICATIONS', 'Professional Qualifications', 'professional qualifications',
+        'PROFESSIONAL DEVELOPMENT', 'Professional Development', 'professional development',
+        'CONTINUING EDUCATION', 'Continuing Education', 'continuing education',
+        'ACADEMIC CREDENTIALS', 'Academic Credentials', 'academic credentials',
+        'SCHOLASTIC BACKGROUND', 'Scholastic Background', 'scholastic background',
+        'CERTIFICATES', 'Certificates', 'certificates',
+        'LICENSES', 'Licenses', 'licenses',
+        'PROFESSIONAL CERTIFICATIONS', 'Professional Certifications', 'professional certifications',
+        'ACCREDITATIONS', 'Accreditations', 'accreditations',
+        'ACADEMIC ACHIEVEMENTS', 'Academic Achievements', 'academic achievements',
+        'EDUCATIONAL ATTAINMENT', 'Educational Attainment', 'educational attainment',
+        'HIGHER EDUCATION', 'Higher Education', 'higher education',
+        'TERTIARY EDUCATION', 'Tertiary Education', 'tertiary education',
+        'POSTGRADUATE STUDIES', 'Postgraduate Studies', 'postgraduate studies',
+        'UNDERGRADUATE STUDIES', 'Undergraduate Studies', 'undergraduate studies',
+        'PROFESSIONAL TRAINING', 'Professional Training', 'professional training',
+        'COURSES', 'Courses', 'courses',
+        'WORKSHOPS', 'Workshops', 'workshops',
+        'SEMINARS', 'Seminars', 'seminars'
     ],
 
     publications: [
@@ -163,7 +216,37 @@ const SECTION_DICTIONARIES = {
         'BOOKS', 'Books', 'books',
         'CHAPTERS', 'Chapters', 'chapters',
         'PRESENTATIONS', 'Presentations', 'presentations',
-        'CONFERENCES/PUBLICATION', 'Conferences/Publication', 'conferences/publication'
+        'CONFERENCES/PUBLICATION', 'Conferences/Publication', 'conferences/publication',
+        'PUBLISHED WORK', 'Published Work', 'published work',
+        'WRITTEN WORK', 'Written Work', 'written work',
+        'AUTHORED PUBLICATIONS', 'Authored Publications', 'authored publications',
+        'PEER-REVIEWED PUBLICATIONS', 'Peer-reviewed Publications', 'peer-reviewed publications',
+        'SCIENTIFIC PUBLICATIONS', 'Scientific Publications', 'scientific publications',
+        'TECHNICAL PUBLICATIONS', 'Technical Publications', 'technical publications',
+        'REPORTS', 'Reports', 'reports',
+        'TECHNICAL REPORTS', 'Technical Reports', 'technical reports',
+        'WHITE PAPERS', 'White Papers', 'white papers',
+        'POLICY PAPERS', 'Policy Papers', 'policy papers',
+        'WORKING PAPERS', 'Working Papers', 'working papers',
+        'DISCUSSION PAPERS', 'Discussion Papers', 'discussion papers',
+        'CONFERENCE PROCEEDINGS', 'Conference Proceedings', 'conference proceedings',
+        'BOOK CHAPTERS', 'Book Chapters', 'book chapters',
+        'MONOGRAPHS', 'Monographs', 'monographs',
+        'EDITED VOLUMES', 'Edited Volumes', 'edited volumes',
+        'RESEARCH OUTPUTS', 'Research Outputs', 'research outputs',
+        'ACADEMIC WRITING', 'Academic Writing', 'academic writing',
+        'PROFESSIONAL WRITING', 'Professional Writing', 'professional writing',
+        'PUBLICATION LIST', 'Publication List', 'publication list',
+        'BIBLIOGRAPHY', 'Bibliography', 'bibliography',
+        'PUBLISHED RESEARCH', 'Published Research', 'published research',
+        'MEDIA PUBLICATIONS', 'Media Publications', 'media publications',
+        'PRESS ARTICLES', 'Press Articles', 'press articles',
+        'ONLINE PUBLICATIONS', 'Online Publications', 'online publications',
+        'BLOG POSTS', 'Blog Posts', 'blog posts',
+        'CONTRIBUTIONS', 'Contributions', 'contributions',
+        'SELECTED PUBLICATIONS', 'Selected Publications', 'selected publications',
+        'KEY PUBLICATIONS', 'Key Publications', 'key publications',
+        'RECENT PUBLICATIONS', 'Recent Publications', 'recent publications'
     ],
 
     skills: [
@@ -191,7 +274,19 @@ const SECTION_DICTIONARIES = {
         'CONTACT INFORMATION', 'Contact Information', 'contact information',
         'LANGUAGES', 'Languages', 'languages',
         'LANGUAGE SKILLS', 'Language Skills', 'language skills',
-        'LINGUISTIC SKILLS', 'Linguistic Skills', 'linguistic skills'
+        'LINGUISTIC SKILLS', 'Linguistic Skills', 'linguistic skills',
+        'LANGUAGE PROFICIENCY', 'Language Proficiency', 'language proficiency',
+        'SPOKEN LANGUAGES', 'Spoken Languages', 'spoken languages',
+        'LANGUAGE ABILITIES', 'Language Abilities', 'language abilities',
+        'LINGUISTIC ABILITIES', 'Linguistic Abilities', 'linguistic abilities',
+        'PERSONAL DATA', 'Personal Data', 'personal data',
+        'BIOGRAPHICAL DATA', 'Biographical Data', 'biographical data',
+        'PERSONAL PARTICULARS', 'Personal Particulars', 'personal particulars',
+        'BIO DATA', 'Bio Data', 'bio data',
+        'BIODATA', 'Biodata', 'biodata',
+        'CITIZENSHIP', 'Citizenship', 'citizenship',
+        'RESIDENCE', 'Residence', 'residence',
+        'CONTACT', 'Contact', 'contact'
     ],
 
     country_experience: [
@@ -204,7 +299,20 @@ const SECTION_DICTIONARIES = {
         'MULTICULTURAL EXPERIENCE', 'Multicultural Experience', 'multicultural experience',
         'REGIONAL EXPERIENCE', 'Regional Experience', 'regional experience',
         'SPECIFIC COUNTRY EXPERIENCE', 'Specific country experience', 'specific country experience',
-        'COUNTRIES OF WORK EXPERIENCES', 'Countries of Work Experiences', 'countries of work experiences'
+        'COUNTRIES OF WORK EXPERIENCES', 'Countries of Work Experiences', 'countries of work experiences',
+        'GEOGRAPHIC EXPERIENCE', 'Geographic Experience', 'geographic experience',
+        'COUNTRIES WORKED IN', 'Countries Worked In', 'countries worked in',
+        'WORK LOCATIONS', 'Work Locations', 'work locations',
+        'INTERNATIONAL ASSIGNMENTS', 'International Assignments', 'international assignments',
+        'COUNTRIES OF OPERATION', 'Countries of Operation', 'countries of operation',
+        'FIELD LOCATIONS', 'Field Locations', 'field locations',
+        'COUNTRY EXPERTISE', 'Country Expertise', 'country expertise',
+        'REGIONAL EXPERTISE', 'Regional Expertise', 'regional expertise',
+        'GEOGRAPHICAL COVERAGE', 'Geographical Coverage', 'geographical coverage',
+        'COUNTRIES COVERED', 'Countries Covered', 'countries covered',
+        'INTERNATIONAL EXPOSURE', 'International Exposure', 'international exposure',
+        'REGIONS WORKED', 'Regions Worked', 'regions worked',
+        'AREAS OF OPERATION', 'Areas of Operation', 'areas of operation'
     ]
 };
 
@@ -212,12 +320,12 @@ const SECTION_DICTIONARIES = {
 const ALL_UNIQUE_HEADERS = Object.values(SECTION_DICTIONARIES).flat().filter((v, i, a) => a.indexOf(v) === i);
 
 /**
- * Map section names to standardized categories using comprehensive dictionaries
+ * Enhanced section mapping with intelligent content redistribution
  */
 function mapSectionToCategory(sectionName) {
     const sectionUpper = sectionName.toUpperCase();
 
-    // Exact match first (highest precision)
+    // Direct mapping first
     for (const [category, terms] of Object.entries(SECTION_DICTIONARIES)) {
         for (const term of terms) {
             if (sectionUpper === term.toUpperCase()) {
@@ -226,7 +334,7 @@ function mapSectionToCategory(sectionName) {
         }
     }
 
-    // Partial match (broader matching)
+    // Fuzzy matching with keyword analysis
     for (const [category, terms] of Object.entries(SECTION_DICTIONARIES)) {
         for (const term of terms) {
             const termUpper = term.toUpperCase();
@@ -234,6 +342,32 @@ function mapSectionToCategory(sectionName) {
                 return category;
             }
         }
+    }
+
+    // Smart content redistribution based on keywords
+    const sectionLower = sectionName.toLowerCase();
+
+    // Skills content should be redistributed to profile
+    if (sectionLower.includes('skill') || sectionLower.includes('competenc') ||
+        sectionLower.includes('expert') || sectionLower.includes('capabilit')) {
+        return 'profile'; // Skills go to profile for IOD format
+    }
+
+    // Awards/Achievements to profile
+    if (sectionLower.includes('award') || sectionLower.includes('achievement') ||
+        sectionLower.includes('honor') || sectionLower.includes('recognition')) {
+        return 'profile';
+    }
+
+    // Certifications to qualifications
+    if (sectionLower.includes('certif') || sectionLower.includes('training') ||
+        sectionLower.includes('course') || sectionLower.includes('workshop')) {
+        return 'qualifications';
+    }
+
+    // References/Referees - ignore or add to additional_info
+    if (sectionLower.includes('referenc') || sectionLower.includes('referee')) {
+        return null; // Will go to additional_info
     }
 
     return null;
@@ -335,28 +469,378 @@ function parseCvWithRobustTextSlicing(text) {
 }
 
 /**
- * Consolidate parsed sections into standardized categories
+ * Create a fingerprint of content for deduplication
+ */
+function createContentFingerprint(content) {
+    // Normalize content for comparison
+    const normalized = content
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .replace(/[^\w\s]/g, '')
+        .trim();
+
+    // Create a simple hash/fingerprint
+    return normalized.substring(0, 100) + '|' + normalized.length;
+}
+
+/**
+ * Extract signature from experience entry for deduplication
+ */
+function extractEntrySignature(entry) {
+    // Extract dates and first line for signature
+    const datePattern = /\b(\d{4})\s*[-–—]\s*(\d{4}|present|current)/i;
+    const dateMatch = entry.match(datePattern);
+    const firstLine = entry.split('\n')[0].substring(0, 50);
+
+    return `${dateMatch ? dateMatch[0] : ''}|${firstLine}`;
+}
+
+/**
+ * Merge experience entries avoiding duplicates
+ */
+function mergeExperienceEntries(sections) {
+    const allEntries = [];
+    const seenEntries = new Set();
+
+    for (const section of sections) {
+        const entries = splitExperienceWithPatternRecognition(section.content);
+
+        for (const entry of entries) {
+            // Create signature from first 100 chars and dates
+            const entrySignature = extractEntrySignature(entry);
+
+            if (!seenEntries.has(entrySignature)) {
+                seenEntries.add(entrySignature);
+                allEntries.push(entry);
+            }
+        }
+    }
+
+    return allEntries.join('\n\n');
+}
+
+/**
+ * Merge publications avoiding duplicates
+ */
+function mergePublications(sections) {
+    const allPublications = [];
+    const seenTitles = new Set();
+
+    for (const section of sections) {
+        const lines = section.content.split('\n');
+
+        for (const line of lines) {
+            if (line.trim()) {
+                // Extract potential title (usually in quotes or after year)
+                const titleMatch = line.match(/"([^"]+)"|'([^']+)'|(?:\d{4}\.\s*)([^.]+)/);
+                const title = titleMatch ? (titleMatch[1] || titleMatch[2] || titleMatch[3]) : line;
+                const normalizedTitle = title.toLowerCase().replace(/[^\w\s]/g, '').trim();
+
+                if (!seenTitles.has(normalizedTitle)) {
+                    seenTitles.add(normalizedTitle);
+                    allPublications.push(line);
+                }
+            }
+        }
+    }
+
+    return allPublications.join('\n');
+}
+
+/**
+ * Merge qualifications avoiding duplicates
+ */
+function mergeQualifications(sections) {
+    const allQualifications = [];
+    const seenQualifications = new Set();
+
+    for (const section of sections) {
+        const entries = section.content.split(/\n\n+/);
+
+        for (const entry of entries) {
+            if (entry.trim()) {
+                // Create signature from degree and institution
+                const degreeMatch = entry.match(/\b(phd|doctorate|master|msc|ma|mba|bachelor|bsc|ba|diploma)\b/i);
+                const institutionMatch = entry.match(/university|college|institute|school/i);
+                const signature = `${degreeMatch ? degreeMatch[0] : ''}|${institutionMatch ? institutionMatch[0] : ''}`;
+
+                if (!seenQualifications.has(signature) || signature === '|') {
+                    seenQualifications.add(signature);
+                    allQualifications.push(entry);
+                }
+            }
+        }
+    }
+
+    return allQualifications.join('\n\n');
+}
+
+/**
+ * Merge sections preserving unique content
+ */
+function mergeWithUniqueContent(sections) {
+    // Start with the most comprehensive version
+    let merged = sections[0].content;
+    const mergedLower = merged.toLowerCase();
+
+    // Check other sections for unique content
+    for (let i = 1; i < sections.length; i++) {
+        const lines = sections[i].content.split('\n');
+        const uniqueLines = [];
+
+        for (const line of lines) {
+            const lineLower = line.toLowerCase().trim();
+            if (lineLower && !mergedLower.includes(lineLower)) {
+                uniqueLines.push(line);
+            }
+        }
+
+        if (uniqueLines.length > 0) {
+            merged += '\n\n' + uniqueLines.join('\n');
+        }
+    }
+
+    return merged;
+}
+
+/**
+ * Intelligently merge related sections that map to the same category
+ */
+function mergeRelatedSections(sections, category) {
+    // Sort sections by content length (longer = more comprehensive)
+    sections.sort((a, b) => b.contentLength - a.contentLength);
+
+    if (category === 'experience' || category === 'employment') {
+        // For experience/employment, check for overlapping date ranges
+        return mergeExperienceEntries(sections);
+    } else if (category === 'publications') {
+        // For publications, deduplicate by title
+        return mergePublications(sections);
+    } else if (category === 'qualifications') {
+        // For qualifications, deduplicate by degree/institution
+        return mergeQualifications(sections);
+    } else {
+        // For other categories, take the most comprehensive (longest) version
+        // but check for unique content in shorter versions
+        return mergeWithUniqueContent(sections);
+    }
+}
+
+/**
+ * Enhanced consolidation with deduplication
  */
 function consolidateSections(parsedSectionsResult) {
     const sectionsToConsolidate = parsedSectionsResult.__parser_failed ? {} : parsedSectionsResult;
 
     const consolidated = {
-        profile: '', personal_details: '', country_experience: '', qualifications: '',
-        publications: '', experience: '', skills: '', employment: '', additional_info: ''
+        profile: '',
+        personal_details: '',
+        country_experience: '',
+        qualifications: '',
+        publications: '',
+        experience: '',
+        skills: '',
+        employment: '',
+        additional_info: ''
     };
+
+    // Track which content has already been added to prevent duplicates
+    const contentFingerprints = new Map();
+
+    // First pass: collect all sections by category with deduplication
+    const categorizedSections = {};
 
     for (const [sectionName, content] of Object.entries(sectionsToConsolidate)) {
         const category = mapSectionToCategory(sectionName);
+
         if (category) {
-            consolidated[category] = consolidated[category] ? `${consolidated[category]}\n\n${content}` : content;
+            // Create a fingerprint of the content for comparison
+            const fingerprint = createContentFingerprint(content);
+
+            // Check if we've already seen this content
+            if (contentFingerprints.has(fingerprint)) {
+                console.log(`Duplicate content detected in ${sectionName}, skipping...`);
+                continue;
+            }
+
+            contentFingerprints.set(fingerprint, true);
+
+            // Store content by category
+            if (!categorizedSections[category]) {
+                categorizedSections[category] = [];
+            }
+            categorizedSections[category].push({
+                sectionName,
+                content,
+                contentLength: content.length
+            });
         } else {
+            // Unmapped sections go to additional_info
             consolidated.additional_info = consolidated.additional_info ?
                 `${consolidated.additional_info}\n\n--- ${sectionName} ---\n${content}` :
                 `--- ${sectionName} ---\n${content}`;
         }
     }
 
+    // Second pass: intelligent merging of categorized content
+    for (const [category, sections] of Object.entries(categorizedSections)) {
+        if (sections.length === 1) {
+            // Single section, use it directly
+            consolidated[category] = sections[0].content;
+        } else {
+            // Multiple sections mapped to same category - merge intelligently
+            consolidated[category] = mergeRelatedSections(sections, category);
+        }
+    }
+
+    // Third pass: redistribute additional_info content
+    redistributeAdditionalInfo(consolidated);
+
+    // Fourth pass: extract countries from all content if country_experience is empty
+    if (!consolidated.country_experience) {
+        const allContent = Object.values(consolidated).join(' ');
+        consolidated.country_experience = extractCountriesFromAllContent(allContent);
+    }
+
+    // Fifth pass: merge skills into profile
+    if (consolidated.skills) {
+        consolidated.profile = consolidated.profile ?
+            `${consolidated.profile}\n\nKey Skills and Expertise:\n${consolidated.skills}` :
+            `Key Skills and Expertise:\n${consolidated.skills}`;
+        consolidated.skills = ''; // Clear skills as it's been merged
+    }
+
     return consolidated;
+}
+
+/**
+ * Enhanced content extraction from additional_info
+ */
+function redistributeAdditionalInfo(consolidatedSections) {
+    if (!consolidatedSections.additional_info) return;
+
+    const additionalContent = consolidatedSections.additional_info;
+    const lines = additionalContent.split('\n');
+
+    let currentSection = null;
+    let currentContent = [];
+
+    for (const line of lines) {
+        const trimmedLine = line.trim();
+
+        // Check if this is a section header
+        if (trimmedLine.startsWith('---') && trimmedLine.endsWith('---')) {
+            // Process previous section
+            if (currentSection && currentContent.length > 0) {
+                processUnmappedSection(currentSection, currentContent.join('\n'), consolidatedSections);
+            }
+
+            // Start new section
+            currentSection = trimmedLine.replace(/---/g, '').trim();
+            currentContent = [];
+        } else {
+            currentContent.push(line);
+        }
+    }
+
+    // Process last section
+    if (currentSection && currentContent.length > 0) {
+        processUnmappedSection(currentSection, currentContent.join('\n'), consolidatedSections);
+    }
+
+    // Clear additional_info after redistribution
+    consolidatedSections.additional_info = '';
+}
+
+/**
+ * Process unmapped sections and distribute content intelligently
+ */
+function processUnmappedSection(sectionName, content, consolidatedSections) {
+    const sectionLower = sectionName.toLowerCase();
+    const contentLower = content.toLowerCase();
+
+    // Analyze content for publication patterns
+    if (contentLower.includes('journal') || contentLower.includes('conference') ||
+        contentLower.includes('paper') || contentLower.includes('isbn') ||
+        contentLower.includes('doi') || contentLower.includes('published')) {
+        consolidatedSections.publications = consolidatedSections.publications ?
+            `${consolidatedSections.publications}\n\n${content}` : content;
+        return;
+    }
+
+    // Country/location mentions go to country_experience
+    const countryPattern = /\b(?:afghanistan|albania|algeria|angola|argentina|armenia|australia|austria|azerbaijan|bahrain|bangladesh|belarus|belgium|benin|bolivia|bosnia|botswana|brazil|bulgaria|burkina faso|burundi|cambodia|cameroon|canada|central african|chad|chile|china|colombia|congo|costa rica|croatia|cuba|cyprus|czech|denmark|djibouti|dominican|ecuador|egypt|el salvador|eritrea|estonia|ethiopia|fiji|finland|france|gabon|gambia|georgia|germany|ghana|greece|guatemala|guinea|guyana|haiti|honduras|hungary|iceland|india|indonesia|iran|iraq|ireland|israel|italy|jamaica|japan|jordan|kazakhstan|kenya|kosovo|kuwait|kyrgyzstan|laos|latvia|lebanon|lesotho|liberia|libya|lithuania|luxembourg|macedonia|madagascar|malawi|malaysia|mali|malta|mauritania|mauritius|mexico|moldova|mongolia|montenegro|morocco|mozambique|myanmar|namibia|nepal|netherlands|new zealand|nicaragua|niger|nigeria|norway|oman|pakistan|palestine|panama|papua|paraguay|peru|philippines|poland|portugal|qatar|romania|russia|rwanda|saudi arabia|senegal|serbia|sierra leone|singapore|slovakia|slovenia|somalia|south africa|south korea|south sudan|spain|sri lanka|sudan|sweden|switzerland|syria|taiwan|tajikistan|tanzania|thailand|timor|togo|tunisia|turkey|uganda|ukraine|united arab emirates|united kingdom|united states|uruguay|uzbekistan|venezuela|vietnam|yemen|zambia|zimbabwe)\b/gi;
+
+    const countryMatches = content.match(countryPattern);
+    if (countryMatches && countryMatches.length > 2) {
+        const uniqueCountries = [...new Set(countryMatches.map(c => c.charAt(0).toUpperCase() + c.slice(1)))];
+        const countryList = uniqueCountries.join(', ');
+        consolidatedSections.country_experience = consolidatedSections.country_experience ?
+            `${consolidatedSections.country_experience}, ${countryList}` : countryList;
+        return;
+    }
+
+    // Check for work-related keywords
+    if (sectionLower.includes('project') || sectionLower.includes('assignment') ||
+        sectionLower.includes('consultancy') || sectionLower.includes('contract')) {
+        // Determine if it's employment or experience based on content
+        if (contentLower.includes('permanent') || contentLower.includes('full-time') ||
+            contentLower.includes('employee')) {
+            consolidatedSections.employment = consolidatedSections.employment ?
+                `${consolidatedSections.employment}\n\n${content}` : content;
+        } else {
+            consolidatedSections.experience = consolidatedSections.experience ?
+                `${consolidatedSections.experience}\n\n${content}` : content;
+        }
+        return;
+    }
+
+    // Professional memberships/affiliations to qualifications
+    if (sectionLower.includes('membership') || sectionLower.includes('affiliation') ||
+        sectionLower.includes('association') || sectionLower.includes('society')) {
+        consolidatedSections.qualifications = consolidatedSections.qualifications ?
+            `${consolidatedSections.qualifications}\n\nProfessional Memberships:\n${content}` :
+            `Professional Memberships:\n${content}`;
+        return;
+    }
+
+    // Otherwise, analyze content and make intelligent decision
+    if (content.length > 200) {
+        // Longer content likely belongs to profile or experience
+        if (contentLower.includes('i am') || contentLower.includes('my ') ||
+            contentLower.includes('years of experience')) {
+            consolidatedSections.profile = consolidatedSections.profile ?
+                `${consolidatedSections.profile}\n\n${content}` : content;
+        } else {
+            consolidatedSections.experience = consolidatedSections.experience ?
+                `${consolidatedSections.experience}\n\n${content}` : content;
+        }
+    }
+}
+
+/**
+ * Extract countries from all content
+ */
+function extractCountriesFromAllContent(text) {
+    const countryPattern = /\b(?:afghanistan|albania|algeria|angola|argentina|armenia|australia|austria|azerbaijan|bahrain|bangladesh|belarus|belgium|benin|bolivia|bosnia|botswana|brazil|bulgaria|burkina faso|burundi|cambodia|cameroon|canada|central african|chad|chile|china|colombia|congo|costa rica|croatia|cuba|cyprus|czech|denmark|djibouti|dominican|ecuador|egypt|el salvador|eritrea|estonia|ethiopia|fiji|finland|france|gabon|gambia|georgia|germany|ghana|greece|guatemala|guinea|guyana|haiti|honduras|hungary|iceland|india|indonesia|iran|iraq|ireland|israel|italy|jamaica|japan|jordan|kazakhstan|kenya|kosovo|kuwait|kyrgyzstan|laos|latvia|lebanon|lesotho|liberia|libya|lithuania|luxembourg|macedonia|madagascar|malawi|malaysia|mali|malta|mauritania|mauritius|mexico|moldova|mongolia|montenegro|morocco|mozambique|myanmar|namibia|nepal|netherlands|new zealand|nicaragua|niger|nigeria|norway|oman|pakistan|palestine|panama|papua|paraguay|peru|philippines|poland|portugal|qatar|romania|russia|rwanda|saudi arabia|senegal|serbia|sierra leone|singapore|slovakia|slovenia|somalia|south africa|south korea|south sudan|spain|sri lanka|sudan|sweden|switzerland|syria|taiwan|tajikistan|tanzania|thailand|timor|togo|tunisia|turkey|uganda|ukraine|united arab emirates|united kingdom|uk|united states|usa|uruguay|uzbekistan|venezuela|vietnam|yemen|zambia|zimbabwe)\b/gi;
+
+    const matches = text.match(countryPattern);
+    if (matches) {
+        // Clean and deduplicate
+        const cleanedCountries = matches.map(country => {
+            // Normalize common variations
+            if (country.toLowerCase() === 'uk') return 'United Kingdom';
+            if (country.toLowerCase() === 'usa') return 'United States';
+            return country.split(' ').map(word =>
+                word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+            ).join(' ');
+        });
+
+        const uniqueCountries = [...new Set(cleanedCountries)];
+        return uniqueCountries.join(', ');
+    }
+
+    return '';
 }
 
 /**
@@ -370,25 +854,81 @@ function splitExperienceWithPatternRecognition(experienceText) {
     let bestSplits = [];
     let maxCount = 0;
 
-    // Strategy 1: Bullet points and list markers
-    const bulletPatterns = [
-        /(?:^|\n)\s*[•·▪▫◦‣⁃]\s*/gm,
-        /(?:^|\n)\s*[-–—]\s+(?=[A-Z])/gm,
-        /(?:^|\n)\s*\*\s+/gm,
-        /(?:^|\n)\s*\d+\.\s+/gm,
+    // Strategy 0: Dense format with role titles (like Brooks Joanna CV)
+    // Look for specific role patterns that start entries in dense CVs
+    const denseRolePatterns = [
+        // Team Leader patterns
+        /(?:^|\n)\s*Team Leader\s*[-–—]/gmi,
+        // International roles
+        /(?:^|\n)\s*International\s+(?:Expert|Consultant|M&E|Chief|Legal Expert|Project Evaluation Expert)\s*[-–—:,]/gmi,
+        // Deputy/Senior roles
+        /(?:^|\n)\s*(?:Deputy Team Leader|Senior\s+\w+)\s*[-–—:,]/gmi,
+        // Consultant patterns
+        /(?:^|\n)\s*Consultant\s+(?:for|to)\s+/gmi,
+        // Independent roles
+        /(?:^|\n)\s*Independent\s+(?:Consultant|Evaluation)\s*[-–—:,]/gmi,
+        // Expert roles
+        /(?:^|\n)\s*(?:Business|Governance|Justice|Evaluation|Policy|Programme|Project|Legal|Human Rights)\s*(?:&\s*\w+\s*)?Expert\s*[-–,:\s]/gmi,
+        // Advisor/Manager roles
+        /(?:^|\n)\s*(?:Policy|Programme|Project|Legal|Human Rights|Judicial)\s+(?:Advisor|Manager|Coordinator|Analyst)\s*[-–,:]/gmi,
+        // Other specific roles
+        /(?:^|\n)\s*(?:Facilitator|Quality Controller|Researcher|Pupil Barrister|Judge's Clerk)\s*[-–:,]/gmi,
+        // Roles without dashes
+        /(?:^|\n)\s*(?:Drafting|Expert on|Responsible for)/gmi
     ];
 
-    for (const pattern of bulletPatterns) {
+    // Try dense role patterns first
+    for (const pattern of denseRolePatterns) {
         const matches = [...experienceText.matchAll(pattern)];
-        if (matches.length > 1) {
-            const splitPattern = new RegExp(`(?=${pattern.source})`, 'gm');
-            const splits = experienceText.split(splitPattern)
-                .map(entry => entry.trim())
-                .filter(entry => entry.length > 40);
+        if (matches.length > 0) {
+            // For dense format, we need to split more carefully
+            // Each entry typically goes until the next role pattern
+            const allRolePattern = /(?:^|\n)\s*(?:Team Leader|International\s+(?:Expert|Consultant|M&E|Chief|Legal Expert|Project Evaluation Expert)|Deputy Team Leader|Senior\s+(?:\w+|Non-Key Expert)|Consultant\s+(?:for|to)|Independent\s+(?:Consultant|Evaluation|Team Leader)|(?:Business|Governance|Justice|Evaluation|Policy|Programme|Project|Legal|Human Rights|M&E)(?:\s*&\s*\w+)?(?:\s+Expert)?|(?:Policy|Programme|Project|Legal|Human Rights|Judicial|Judicial Training)\s+(?:Advisor|Manager|Coordinator|Analyst|and Research Advisor)|Facilitator|Quality Controller|Researcher|Pupil Barrister|Judge's Clerk|Drafting|Expert on|Responsible for)\s*[-–:,]?/gmi;
 
-            if (splits.length > maxCount) {
-                maxCount = splits.length;
-                bestSplits = splits;
+            const roleMatches = [...experienceText.matchAll(allRolePattern)];
+            if (roleMatches.length > 1) {
+                const splits = [];
+
+                for (let i = 0; i < roleMatches.length; i++) {
+                    const start = roleMatches[i].index;
+                    const end = i < roleMatches.length - 1 ? roleMatches[i + 1].index : experienceText.length;
+                    const entry = experienceText.substring(start, end).trim();
+
+                    // Only include entries with reasonable content
+                    if (entry.length > 50 && entry.split(',').length >= 2) {
+                        splits.push(entry);
+                    }
+                }
+
+                if (splits.length > maxCount) {
+                    maxCount = splits.length;
+                    bestSplits = splits;
+                }
+            }
+        }
+    }
+
+    // Strategy 1: Bullet points and list markers
+    if (maxCount < 2) {
+        const bulletPatterns = [
+            /(?:^|\n)\s*[•·▪▫◦‣⁃]\s*/gm,
+            /(?:^|\n)\s*[-–—]\s+(?=[A-Z])/gm,
+            /(?:^|\n)\s*\*\s+/gm,
+            /(?:^|\n)\s*\d+\.\s+/gm,
+        ];
+
+        for (const pattern of bulletPatterns) {
+            const matches = [...experienceText.matchAll(pattern)];
+            if (matches.length > 1) {
+                const splitPattern = new RegExp(`(?=${pattern.source})`, 'gm');
+                const splits = experienceText.split(splitPattern)
+                    .map(entry => entry.trim())
+                    .filter(entry => entry.length > 40);
+
+                if (splits.length > maxCount) {
+                    maxCount = splits.length;
+                    bestSplits = splits;
+                }
             }
         }
     }
@@ -439,7 +979,7 @@ function splitExperienceWithPatternRecognition(experienceText) {
         }
     }
 
-    // Strategy 3: Job role patterns
+    // Strategy 3: Job role patterns (general)
     if (maxCount < 2) {
         const rolePatterns = [
             /(?:^|\n)\s*(?:Senior\s+|Junior\s+|Lead\s+|Principal\s+|Chief\s+|Head\s+of\s+|Director\s+of\s+|Manager\s+of\s+)?(?:Consultant|Manager|Director|Coordinator|Specialist|Advisor|Analyst|Officer|Executive|Developer|Engineer|Designer|Researcher|Assistant|Associate)/gmi,
@@ -658,4 +1198,4 @@ async function processCv(filePath, progressCallback = null, originalFilename = n
     }
 }
 
-module.exports = { processCv }; 
+module.exports = { processCv, splitExperienceWithPatternRecognition }; 
