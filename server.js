@@ -8,6 +8,8 @@ require('dotenv').config();
 
 const { processCv } = require('./services/cvProcessor');
 const { generateIodParcDocx } = require('./services/docxGenerator');
+const { cleanupOutputDirectory } = require('./scripts/cleanup-output');
+const cleanupConfig = require('./config/cleanup.config');
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -33,6 +35,28 @@ if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir);
 
 const upload = multer({ dest: uploadDir });
 
+// Configurable periodic cleanup
+if (cleanupConfig.enablePeriodicCleanup) {
+    setInterval(() => {
+        if (cleanupConfig.enableLogging) {
+            console.log('🧹 Running periodic output directory cleanup...');
+        }
+        cleanupOutputDirectory();
+    }, cleanupConfig.cleanupInterval);
+
+    if (cleanupConfig.enableLogging) {
+        console.log(`🕒 Periodic cleanup enabled: every ${cleanupConfig.cleanupInterval / (60 * 1000)} minutes`);
+    }
+}
+
+// Run cleanup on startup if configured
+if (cleanupConfig.cleanupOnStartup) {
+    if (cleanupConfig.enableLogging) {
+        console.log('🧹 Running startup cleanup...');
+    }
+    cleanupOutputDirectory();
+}
+
 // Health check endpoint
 app.get('/health', (req, res) => {
     res.status(200).json({
@@ -41,6 +65,70 @@ app.get('/health', (req, res) => {
         environment: process.env.NODE_ENV || 'development',
         version: '1.0.0'
     });
+});
+
+// Admin endpoint for manual cleanup
+app.post('/api/admin/cleanup', (req, res) => {
+    try {
+        console.log('🧹 Manual cleanup triggered...');
+        cleanupOutputDirectory();
+        res.json({
+            success: true,
+            message: 'Cleanup completed successfully',
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error during manual cleanup:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Cleanup failed',
+            details: error.message
+        });
+    }
+});
+
+// Admin endpoint for output folder status
+app.get('/api/admin/output-status', (req, res) => {
+    try {
+        if (!fs.existsSync(outputDir)) {
+            return res.json({
+                exists: false,
+                files: 0,
+                totalSize: 0
+            });
+        }
+
+        const files = fs.readdirSync(outputDir)
+            .filter(file => file.startsWith('CV_') && file.endsWith('.docx'))
+            .map(file => {
+                const filePath = path.join(outputDir, file);
+                const stats = fs.statSync(filePath);
+                return {
+                    name: file,
+                    size: stats.size,
+                    created: stats.birthtime
+                };
+            })
+            .sort((a, b) => b.created - a.created);
+
+        const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+
+        res.json({
+            exists: true,
+            fileCount: files.length,
+            totalSize: totalSize,
+            totalSizeMB: (totalSize / 1024 / 1024).toFixed(2),
+            oldestFile: files.length > 0 ? files[files.length - 1] : null,
+            newestFile: files.length > 0 ? files[0] : null,
+            files: files.slice(0, 10) // Return first 10 files
+        });
+    } catch (error) {
+        console.error('Error getting output status:', error);
+        res.status(500).json({
+            error: 'Failed to get output status',
+            details: error.message
+        });
+    }
 });
 
 // Download endpoint for generated CVs
@@ -62,8 +150,26 @@ app.get('/api/resume/:id/download', (req, res) => {
     fileStream.pipe(res);
 
     fileStream.on('end', () => {
-        // Optional: Clean up file after download
-        // fs.unlinkSync(filePath);
+        // Configurable cleanup after download
+        if (cleanupConfig.deleteAfterDownload) {
+            setTimeout(() => {
+                if (fs.existsSync(filePath)) {
+                    try {
+                        fs.unlinkSync(filePath);
+                        if (cleanupConfig.enableLogging) {
+                            console.log(`🗑️ Cleaned up downloaded file: CV_${resumeId}.docx`);
+                        }
+                    } catch (error) {
+                        console.error(`❌ Error cleaning up file CV_${resumeId}.docx:`, error.message);
+                    }
+                }
+            }, cleanupConfig.deleteDelay);
+        }
+    });
+
+    fileStream.on('error', (error) => {
+        console.error('Error streaming file:', error);
+        res.status(500).json({ error: 'Error downloading file' });
     });
 });
 
@@ -102,7 +208,7 @@ app.post('/api/resume/upload-progress', upload.single('resume'), async (req, res
 
         const structuredData = await processCv(req.file.path, (progress, message) => {
             sendProgress('ai-processing', 30 + (progress * 0.5), message || '🧠 AI analyzing CV structure...');
-        });
+        }, req.file.originalname);
 
         sendProgress('generating', 80, '📄 Generating DOCX document...');
 
@@ -164,7 +270,7 @@ app.post('/transform-cv', upload.single('cv_file'), async (req, res) => {
 
     try {
         console.log(`Processing file: ${req.file.path}`);
-        const structuredData = await processCv(req.file.path);
+        const structuredData = await processCv(req.file.path, null, req.file.originalname);
 
         console.log('Generating DOCX document...');
         const docxBuffer = await generateIodParcDocx(structuredData);
