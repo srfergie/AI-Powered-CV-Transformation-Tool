@@ -511,11 +511,50 @@ async function processCv(filePath, progressCallback = null) {
         if (progressCallback) progressCallback(15, 'Sections identified and consolidated...');
 
         // --- ENHANCEMENT 3: More flexible experience splitting ---
-        // This new regex splits on a newline that is followed by EITHER a 4-digit year OR the text "From–To:".
-        const experienceSplitter = /\n(?=\d{4}|From–To:)/i;
-        const experienceEntries = consolidatedSections.experience
-            .split(experienceSplitter)
-            .filter(entry => entry.trim().length > 10); // Filter out small fragments
+        // Enhanced regex to split on multiple common patterns for job experience entries
+        const experienceSplitters = [
+            // Pattern 1: Lines starting with years (2020, 2019, etc.)
+            /\n(?=\d{4})/i,
+            // Pattern 2: "From–To:" patterns
+            /\n(?=From–To:)/i,
+            // Pattern 3: Job titles with organizations (common pattern: "Job Title, Organization")
+            /\n(?=[A-Z][^,\n]*,\s*[A-Z][^,\n]*[,\n])/,
+            // Pattern 4: Lines starting with common job titles
+            /\n(?=(Senior|Lead|Head|Director|Manager|Coordinator|Consultant|Adviser|Advisor|Team Leader|Project|Program)[\s\w]*[,:])/i,
+            // Pattern 5: Lines with date ranges (various formats)
+            /\n(?=.*\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{4}|\d{1,2}\/\d{1,2}|\d{1,2}-\d{1,2})\b.*[-–—]\s*(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{4}|Present|Current|\d{1,2}\/\d{1,2}|\d{1,2}-\d{1,2})\b)/i,
+            // Pattern 6: Lines starting with organization/company names followed by dates
+            /\n(?=[A-Z][A-Za-z\s&.,()-]+[,]\s*(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{4}))/i
+        ];
+
+        let experienceEntries = [consolidatedSections.experience];
+
+        // Try each splitter pattern until we get multiple entries
+        for (const splitter of experienceSplitters) {
+            const testSplit = consolidatedSections.experience
+                .split(splitter)
+                .filter(entry => entry.trim().length > 50); // Minimum length for valid experience entry
+
+            if (testSplit.length > 1) {
+                experienceEntries = testSplit;
+                console.log(`✅ Successfully split using pattern: ${splitter.source}`);
+                break;
+            }
+        }
+
+        // Fallback: If no automatic splitting worked, try to split on double line breaks
+        if (experienceEntries.length === 1) {
+            const doubleLineBreakSplit = consolidatedSections.experience
+                .split(/\n\s*\n/)
+                .filter(entry => entry.trim().length > 50);
+
+            if (doubleLineBreakSplit.length > 1) {
+                experienceEntries = doubleLineBreakSplit;
+                console.log(`✅ Successfully split using double line breaks`);
+            } else {
+                console.log(`⚠️ Could not automatically split experience section. Treating as single entry.`);
+            }
+        }
 
         console.log(`✅ Experience section consolidated: ${consolidatedSections.experience.length} characters`);
         console.log(`✅ Pre-split consolidated experience block into ${experienceEntries.length} individual entries using adaptive splitting.`);
