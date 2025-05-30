@@ -7,7 +7,7 @@ const cors = require('cors');
 require('dotenv').config();
 
 const { processCv } = require('./services/cvProcessor');
-const { generateIodParcDocx } = require('./services/docxGenerator');
+const { generateTemplateMatchingDocx } = require('./services/templateDocxGenerator');
 const { cleanupOutputDirectory } = require('./scripts/cleanup-output');
 const cleanupConfig = require('./config/cleanup.config');
 
@@ -212,7 +212,7 @@ app.post('/api/resume/upload-progress', upload.single('resume'), async (req, res
 
         sendProgress('generating', 80, '📄 Generating DOCX document...');
 
-        const docxBuffer = await generateIodParcDocx(structuredData);
+        const docxBuffer = await generateTemplateMatchingDocx(structuredData);
 
         // Generate unique ID and save file
         const resumeId = Date.now();
@@ -273,7 +273,7 @@ app.post('/transform-cv', upload.single('cv_file'), async (req, res) => {
         const structuredData = await processCv(req.file.path, null, req.file.originalname);
 
         console.log('Generating DOCX document...');
-        const docxBuffer = await generateIodParcDocx(structuredData);
+        const docxBuffer = await generateTemplateMatchingDocx(structuredData);
 
         res.setHeader('Content-Disposition', 'attachment; filename=CV_IODPARC_Generated.docx');
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');

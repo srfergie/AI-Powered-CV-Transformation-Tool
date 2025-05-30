@@ -5,6 +5,10 @@ const { parsePdf } = require('../services/pdfParserService');
 const { processResumeWithOpenRouter } = require('../services/openRouterService');
 const { generateResumeDocx } = require('../services/docxGeneratorService');
 const { storeResumeData, getAllResumes, getResumeById, updateResumeData, deleteResume } = require('../services/sqliteDatabaseService');
+const { Pool } = require('pg');
+const { v4: uuidv4 } = require('uuid');
+const { processCv } = require('../../services/cvProcessor');
+const { generateTemplateMatchingDocx } = require('../../services/templateDocxGenerator');
 
 // Helper function to check if file is a Word document
 function isWordDocument(fileName) {
@@ -322,7 +326,6 @@ async function updateResumeController(req, res) {
 async function downloadResumeDocxController(req, res) {
   try {
     const resumeId = req.params.id;
-    console.log(`📥 Download request for CV ID: ${resumeId}`);
 
     // Get resume data from database
     const resume = await getResumeById(resumeId);
@@ -330,23 +333,8 @@ async function downloadResumeDocxController(req, res) {
       return res.status(404).json({ message: 'Resume not found' });
     }
 
-    console.log(`📄 Resume retrieved from database:`);
-    console.log(`• ID: ${resume.id}`);
-    console.log(`• fileName: ${resume.fileName}`);
-    console.log(`• status: ${resume.status}`);
-    console.log(`• extractedData type: ${typeof resume.extractedData}`);
-    console.log(`• extractedData keys: ${resume.extractedData ? Object.keys(resume.extractedData) : 'null/undefined'}`);
-
-    if (resume.extractedData && resume.extractedData.personalInfo) {
-      console.log(`• personalInfo.name: ${resume.extractedData.personalInfo.name}`);
-    } else {
-      console.log(`❌ personalInfo not found in extractedData`);
-    }
-
-    console.log(`📄 Generating DOCX for: ${resume.fileName}`);
-
-    // Generate DOCX using standard generation (no template complexity)
-    const docxBuffer = await generateResumeDocx(resume.extractedData, resume.fileName);
+    // Generate DOCX using template-matching generator
+    const docxBuffer = await generateTemplateMatchingDocx(resume.extractedData);
 
     // Create filename using original filename + _IODPARC.docx
     const baseFilename = resume.fileName
@@ -356,9 +344,7 @@ async function downloadResumeDocxController(req, res) {
       .replace(/_+/g, '_') // Replace multiple underscores with single
       .replace(/^_|_$/g, ''); // Remove leading/trailing underscores
 
-    const filename = `${baseFilename}_IODPARC.docx`;
-
-    console.log(`✅ DOCX generated and sent for CV ID: ${resumeId} as ${filename}`);
+    const filename = `${baseFilename}_IODPARC_Template.docx`;
 
     // Send the file
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
@@ -366,9 +352,9 @@ async function downloadResumeDocxController(req, res) {
     res.send(docxBuffer);
 
   } catch (error) {
-    console.error('❌ Error generating DOCX:', error);
+    console.error('❌ Error generating template-matching DOCX:', error);
     res.status(500).json({
-      message: 'Failed to generate DOCX',
+      message: 'Failed to generate DOCX with template formatting',
       error: error.message
     });
   }
