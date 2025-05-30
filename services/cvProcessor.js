@@ -196,28 +196,49 @@ function parseCvWithHeuristics(text) {
  * COMPREHENSIVE SECTION DICTIONARIES: Extensive employment and section terms
  */
 const SECTION_DICTIONARIES = {
-    // Employment/Experience terms - comprehensive list
-    experience: [
+    // Formal Employment terms - job positions, work history, employment records
+    employment: [
         'EMPLOYMENT', 'Employment', 'employment',
         'EMPLOYMENT RECORD', 'Employment record', 'employment record',
         'EMPLOYMENT HISTORY', 'Employment History', 'employment history',
-        'PROFESSIONAL EXPERIENCE', 'Professional Experience', 'professional experience',
-        'WORK EXPERIENCE', 'Work Experience', 'work experience',
-        'EXPERIENCE', 'Experience', 'experience',
-        'CAREER HISTORY', 'Career History', 'career history',
+        'PROFESSIONAL EMPLOYMENT', 'Professional Employment', 'professional employment',
+        'WORK EMPLOYMENT', 'Work Employment', 'work employment',
+        'JOB HISTORY', 'Job History', 'job history',
+        'CAREER RECORD', 'Career Record', 'career record',
+        'WORK RECORD', 'Work Record', 'work record',
         'WORK HISTORY', 'Work History', 'work history',
-        'HIGHLIGHTED EXPERIENCE', 'Highlighted experience', 'highlighted experience',
+        'CAREER HISTORY', 'Career History', 'career history',
+        'PROFESSIONAL EXPERIENCE', 'Professional Experience', 'professional experience',
+        'POSITIONS HELD', 'Positions Held', 'positions held',
+        'PROFESSIONAL ROLES', 'Professional Roles', 'professional roles',
+        'CURRENT POSITION', 'Current Position', 'current position',
+        'PREVIOUS POSITIONS', 'Previous Positions', 'previous positions'
+    ],
+
+    // Broader Experience terms - projects, consulting, relevant experience
+    experience: [
+        'EXPERIENCE', 'Experience', 'experience',
+        'RELEVANT EXPERIENCE', 'Relevant Experience', 'relevant experience',
+        'OTHER RELEVANT EXPERIENCE', 'Other relevant experience', 'other relevant experience',
+        'PREVIOUS EXPERIENCE', 'Previous Experience', 'previous experience',
+        'ADDITIONAL EXPERIENCE', 'Additional Experience', 'additional experience',
+        'WORK EXPERIENCE', 'Work Experience', 'work experience',
+        'JOB EXPERIENCE', 'Job Experience', 'job experience',
+        'CAREER EXPERIENCE', 'Career Experience', 'career experience',
         'PROFESSIONAL BACKGROUND', 'Professional Background', 'professional background',
+        'WORK BACKGROUND', 'Work Background', 'work background',
+        'CAREER PROGRESSION', 'Career Progression', 'career progression',
         'CAREER SUMMARY', 'Career Summary', 'career summary',
         'WORK SUMMARY', 'Work Summary', 'work summary',
         'PROFESSIONAL SUMMARY', 'Professional Summary', 'professional summary',
-        'RELEVANT EXPERIENCE', 'Relevant Experience', 'relevant experience',
-        'PREVIOUS EXPERIENCE', 'Previous Experience', 'previous experience',
-        'JOB EXPERIENCE', 'Job Experience', 'job experience',
+        'ROLES AND RESPONSIBILITIES', 'Roles and Responsibilities', 'roles and responsibilities',
+        'HIGHLIGHTED EXPERIENCE', 'Highlighted experience', 'highlighted experience',
+        'KEY EXPERIENCE', 'Key Experience', 'key experience',
         'OCCUPATIONAL EXPERIENCE', 'Occupational Experience', 'occupational experience',
-        'PROFESSIONAL ROLES', 'Professional Roles', 'professional roles',
-        'POSITIONS HELD', 'Positions Held', 'positions held',
-        'CAREER PROGRESSION', 'Career Progression', 'career progression'
+        'CONSULTING EXPERIENCE', 'Consulting Experience', 'consulting experience',
+        'PROJECT EXPERIENCE', 'Project Experience', 'project experience',
+        'VOLUNTEER EXPERIENCE', 'Volunteer Experience', 'volunteer experience',
+        'RELATED EXPERIENCE', 'Related Experience', 'related experience'
     ],
 
     // Profile/Summary terms
@@ -317,14 +338,25 @@ const SECTION_DICTIONARIES = {
  * Smart section mapping function using comprehensive dictionaries
  */
 function mapSectionToCategory(sectionName) {
+    console.log(`🔍 Attempting to map section: "${sectionName}"`);
+
     for (const [category, terms] of Object.entries(SECTION_DICTIONARIES)) {
         for (const term of terms) {
-            if (sectionName.toUpperCase().includes(term.toUpperCase()) ||
-                term.toUpperCase().includes(sectionName.toUpperCase())) {
+            const sectionUpper = sectionName.toUpperCase();
+            const termUpper = term.toUpperCase();
+
+            // Check both directions for flexible matching
+            const includesMatch = sectionUpper.includes(termUpper);
+            const reverseMatch = termUpper.includes(sectionUpper);
+
+            if (includesMatch || reverseMatch) {
+                console.log(`✅ MATCHED: "${sectionName}" → ${category} (matched term: "${term}")`);
                 return category;
             }
         }
     }
+
+    console.log(`❌ NO MATCH: "${sectionName}" - checking fallback options`);
     return null; // No match found
 }
 
@@ -342,6 +374,7 @@ function consolidateSections(parsedSections) {
         qualifications: '',
         publications: '',
         experience: '',
+        employment: '', // NEW: Separate category for formal employment
         skills: ''
     };
 
@@ -353,6 +386,7 @@ function consolidateSections(parsedSections) {
         qualifications: [],
         publications: [],
         experience: [],
+        employment: [], // NEW: Separate array for employment
         skills: []
     };
 
@@ -367,8 +401,12 @@ function consolidateSections(parsedSections) {
 
             // Fallback: try to categorize by keyword presence in content
             const contentLower = content.toLowerCase();
-            if (contentLower.includes('experience') || contentLower.includes('employment') ||
-                contentLower.includes('position') || contentLower.includes('role')) {
+            if (contentLower.includes('employment') || contentLower.includes('position') ||
+                contentLower.includes('job') || contentLower.includes('career')) {
+                console.log(`   → FALLBACK: Assigning to employment based on content`);
+                mappedSections.employment.push(content);
+            } else if (contentLower.includes('experience') || contentLower.includes('role') ||
+                contentLower.includes('consulting') || contentLower.includes('project')) {
                 console.log(`   → FALLBACK: Assigning to experience based on content`);
                 mappedSections.experience.push(content);
             } else if (contentLower.includes('education') || contentLower.includes('degree') ||
@@ -387,9 +425,21 @@ function consolidateSections(parsedSections) {
         consolidated[category] = contentArray.filter(Boolean).join('\n\n');
     }
 
+    // Combine employment and experience for unified processing
+    // (Since current DOCX structure expects single experience field)
+    const combinedExperience = [consolidated.employment, consolidated.experience]
+        .filter(Boolean)
+        .join('\n\n');
+    consolidated.experience = combinedExperience;
+
     console.log("✅ Dictionary-based consolidation complete. Final sections:");
+    console.log(`- Employment sections found: ${consolidated.employment.length} characters`);
+    console.log(`- Experience sections found: ${mappedSections.experience.reduce((sum, exp) => sum + exp.length, 0)} characters`);
+    console.log(`- Combined experience total: ${consolidated.experience.length} characters`);
     Object.entries(consolidated).forEach(([key, value]) => {
-        console.log(`- ${key}: ${value.length} characters`);
+        if (key !== 'employment') { // Don't double-log employment since it's now in experience
+            console.log(`- ${key}: ${value.length} characters`);
+        }
     });
 
     return consolidated;
