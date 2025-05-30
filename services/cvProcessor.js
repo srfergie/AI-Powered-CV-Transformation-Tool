@@ -535,21 +535,151 @@ function consolidateSections(parsedSectionsResult) {
  * ENHANCED EXPERIENCE SPLITTING: Multiple pattern recognition strategies
  */
 function splitExperienceWithPatternRecognition(experienceText) {
-    console.log("⚙️ Pre-splitting experience block using pattern recognition...");
+    console.log("⚙️ Enhanced experience splitting with multiple pattern recognition...");
+    console.log(`📝 Processing experience text: ${experienceText.length} characters`);
+
     if (!experienceText || experienceText.trim().length === 0) {
         console.log("⚠️ No experience text to split.");
         return [];
     }
-    // This is a simplified version. Your more complex multi-strategy splitter is better.
-    // Key is to find patterns that reliably separate entries.
-    // Example: Split on lines that start with a year or "From-To:"
-    const entries = experienceText
-        .split(/\n\s*(?=\d{4}(?:[-–]\d{4})?|\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4}\b|From[–-]To:)/i)
-        .map(entry => entry.trim())
-        .filter(entry => entry.length > 50); // Filter out very short or empty entries
 
-    console.log(`✅ Split experience into ${entries.length} individual entries.`);
-    return entries;
+    // Strategy 1: Split on common job title patterns specific to this CV
+    const jobTitlePatterns = [
+        // Consultant/Expert roles
+        /(?:^|\n)\s*(?:Independent\s+)?(?:Senior\s+|Principal\s+|Lead\s+|Deputy\s+|Assistant\s+)?(?:Business\s+&\s+Human\s+Rights\s+Expert|International\s+Project\s+Evaluation\s+Expert|Independent\s+Evaluation\s+Team\s+Leader)/gmi,
+        // Team Leader roles with specific patterns
+        /(?:^|\n)\s*Team\s+Leader\s+[–-]\s+(?:Mid-Term|Final)\s+Evaluation/gmi,
+        // Other consultant/advisor roles
+        /(?:^|\n)\s*(?:Senior\s+|Principal\s+|Lead\s+|Deputy\s+|Assistant\s+)?(?:Consultant|Manager|Director|Coordinator|Specialist|Advisor|Evaluator|Analyst|Officer|Expert)/gmi,
+        // Independent roles
+        /(?:^|\n)\s*Independent\s+(?:Consultant|Evaluator|Expert|Advisor)/gmi
+    ];
+
+    let bestSplits = [];
+    let maxCount = 0;
+
+    // Test job title patterns
+    for (const pattern of jobTitlePatterns) {
+        const matches = [...experienceText.matchAll(pattern)];
+        if (matches.length > maxCount) {
+            console.log(`🎯 Found ${matches.length} matches with job title pattern`);
+
+            // Split on this pattern
+            const splitPattern = new RegExp(`(?=${pattern.source})`, 'gmi');
+            const splits = experienceText.split(splitPattern)
+                .map(entry => entry.trim())
+                .filter(entry => entry.length > 50);
+
+            if (splits.length > maxCount) {
+                maxCount = splits.length;
+                bestSplits = splits;
+            }
+        }
+    }
+
+    // Strategy 2: Try splitting on date patterns if job titles didn't work well
+    if (maxCount < 3) {
+        console.log("🔄 Job title patterns didn't yield enough entries, trying date patterns...");
+
+        const datePatterns = [
+            // Date ranges like "Jan – Aug 2024", "October 2023 – January 2024"
+            /(?:^|\n)\s*(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s*[–-]\s*(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s*\d{4}/gmi,
+            // Single dates like "Jan-May 2024"
+            /(?:^|\n)\s*(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[-–]\s*(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s*\d{4}/gmi,
+            // Year ranges like "2023 – 2024"
+            /(?:^|\n)\s*\d{4}\s*[–-]\s*\d{4}/gmi
+        ];
+
+        for (const pattern of datePatterns) {
+            const matches = [...experienceText.matchAll(pattern)];
+            if (matches.length > maxCount) {
+                console.log(`🎯 Found ${matches.length} matches with date pattern`);
+
+                const splitPattern = new RegExp(`(?=${pattern.source})`, 'gmi');
+                const splits = experienceText.split(splitPattern)
+                    .map(entry => entry.trim())
+                    .filter(entry => entry.length > 50);
+
+                if (splits.length > maxCount) {
+                    maxCount = splits.length;
+                    bestSplits = splits;
+                }
+            }
+        }
+    }
+
+    // Strategy 3: Try splitting on paragraph breaks if still not enough entries
+    if (maxCount < 2) {
+        console.log("🔄 Date patterns didn't work, trying paragraph breaks...");
+
+        const paragraphSplits = experienceText
+            .split(/\n\s*\n/)
+            .map(entry => entry.trim())
+            .filter(entry => entry.length > 100); // Longer threshold for paragraph splits
+
+        if (paragraphSplits.length > maxCount) {
+            maxCount = paragraphSplits.length;
+            bestSplits = paragraphSplits;
+        }
+    }
+
+    // Strategy 4: Smart splitting on lines that look like they start new entries
+    if (maxCount < 2) {
+        console.log("🔄 Trying smart line-based splitting...");
+
+        const lines = experienceText.split('\n');
+        const entries = [];
+        let currentEntry = '';
+
+        for (const line of lines) {
+            const trimmedLine = line.trim();
+
+            // Check if this line looks like the start of a new entry
+            const isNewEntry = (
+                // Starts with a job title
+                /^(?:Team\s+Leader|Business\s+&\s+Human\s+Rights\s+Expert|International\s+Project|Independent\s+Evaluation|Senior\s+|Principal\s+|Lead\s+|Deputy\s+|Assistant\s+)?(?:Consultant|Manager|Director|Coordinator|Specialist|Advisor|Evaluator|Analyst|Officer|Expert)/i.test(trimmedLine) ||
+                // Starts with "Independent"
+                /^Independent\s+/i.test(trimmedLine) ||
+                // Contains date patterns that suggest a new role
+                (/(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec).*\d{4}/.test(trimmedLine) && trimmedLine.length < 200)
+            );
+
+            if (isNewEntry && currentEntry.length > 100) {
+                // Save current entry and start new one
+                entries.push(currentEntry.trim());
+                currentEntry = trimmedLine;
+            } else {
+                // Add to current entry
+                currentEntry += (currentEntry ? '\n' : '') + trimmedLine;
+            }
+        }
+
+        // Add the last entry
+        if (currentEntry.trim().length > 100) {
+            entries.push(currentEntry.trim());
+        }
+
+        if (entries.length > maxCount) {
+            maxCount = entries.length;
+            bestSplits = entries;
+        }
+    }
+
+    // Fallback: if nothing worked, return the whole text as one entry
+    if (bestSplits.length === 0 && experienceText.trim().length > 100) {
+        console.log("⚠️ All splitting strategies failed, returning entire text as single entry");
+        bestSplits = [experienceText.trim()];
+    }
+
+    console.log(`✅ Split experience into ${bestSplits.length} individual entries using best strategy.`);
+
+    // Log preview of first few entries
+    bestSplits.slice(0, 3).forEach((entry, index) => {
+        const preview = entry.substring(0, 100).replace(/\n/g, ' ');
+        console.log(`   Entry ${index + 1}: ${preview}... (${entry.length} chars)`);
+    });
+
+    return bestSplits;
 }
 
 /**
