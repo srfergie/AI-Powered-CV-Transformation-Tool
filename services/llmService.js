@@ -223,6 +223,15 @@ async function extractStructuredDataFromSegments(segments, experienceEntries, pr
         if (progressCallback) progressCallback(50, 'Processing experience and employment entries individually...');
 
         // Process other sections as before.
+        // For personal details, combine multiple sections to give AI more context
+        const personalDetailsContext = [
+            segments.personal_details || '',
+            segments.profile || '',
+            segments.skills || '',
+            // Add first part of qualifications which often contains personal info
+            (segments.qualifications || '').substring(0, 500)
+        ].filter(s => s.length > 0).join('\n\n---\n\n');
+
         const [
             profileData,
             personalData,
@@ -233,7 +242,7 @@ async function extractStructuredDataFromSegments(segments, experienceEntries, pr
             employmentResults // This will be an array of employment results
         ] = await Promise.all([
             callLlm(getProfilePrompt(segments.profile)),
-            callLlm(getPersonalDetailsPrompt(segments.personal_details)),
+            callLlm(getPersonalDetailsPrompt(personalDetailsContext)), // Pass combined context
             callLlm(getCountryExperiencePrompt(segments.country_experience)),
             callLlm(getQualificationsPrompt(segments.qualifications)),
             callLlm(getPublicationsPrompt(segments.publications)),

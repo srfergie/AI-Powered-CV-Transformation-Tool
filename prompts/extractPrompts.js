@@ -5,7 +5,28 @@ function getProfilePrompt(textChunk) {
 }
 
 function getPersonalDetailsPrompt(textChunk) {
-  return `From the text below, extract the person's full name, nationality, and a list of languages with proficiency. Look for the name in headers, contact sections, or any personal information. Respond with ONLY a JSON object: {"name": "...", "nationality": "...", "languages": [{ "language": "...", "proficiency": "..." }]}. Text: """${textChunk}"""`;
+  return `From the CV text below, extract the person's full name, nationality, and languages with proficiency levels.
+
+IMPORTANT: 
+- For NAME: Look in headers, contact info, or the beginning of the CV
+- For NATIONALITY: Look for terms like "Nationality:", "Citizenship:", "Citizen of", "National of", "Passport:", or mentions of being a citizen/national of a country
+- For LANGUAGES: Look for "Languages:", "Language skills:", "Fluent in", "Proficient in", "Native speaker", "Mother tongue", or any mentions of language abilities
+
+If information is scattered, collect from wherever you find it in the text.
+
+Respond with ONLY a JSON object in this exact format:
+{
+  "name": "Full Name Here",
+  "nationality": "Country Name",
+  "languages": [
+    { "language": "English", "proficiency": "Native/Fluent/Intermediate/Basic" },
+    { "language": "French", "proficiency": "Fluent" }
+  ]
+}
+
+If any field is not found, use "Not specified" for name/nationality and empty array [] for languages.
+
+Text: """${textChunk}"""`;
 }
 
 function getCountryExperiencePrompt(textChunk) {

@@ -268,25 +268,42 @@ const SECTION_DICTIONARIES = {
     personal_details: [
         'NATIONALITY', 'Nationality', 'nationality',
         'NATIONALITY & LANGUAGES', 'Nationality & Languages', 'nationality & languages',
+        'NATIONALITY AND LANGUAGES', 'Nationality and Languages', 'nationality and languages',
         'PERSONAL DETAILS', 'Personal Details', 'personal details',
         'PERSONAL INFORMATION', 'Personal Information', 'personal information',
+        'PERSONAL INFO', 'Personal Info', 'personal info',
         'CONTACT DETAILS', 'Contact Details', 'contact details',
         'CONTACT INFORMATION', 'Contact Information', 'contact information',
         'LANGUAGES', 'Languages', 'languages',
         'LANGUAGE SKILLS', 'Language Skills', 'language skills',
         'LINGUISTIC SKILLS', 'Linguistic Skills', 'linguistic skills',
         'LANGUAGE PROFICIENCY', 'Language Proficiency', 'language proficiency',
+        'LANGUAGE COMPETENCIES', 'Language Competencies', 'language competencies',
         'SPOKEN LANGUAGES', 'Spoken Languages', 'spoken languages',
         'LANGUAGE ABILITIES', 'Language Abilities', 'language abilities',
         'LINGUISTIC ABILITIES', 'Linguistic Abilities', 'linguistic abilities',
+        'LINGUISTIC COMPETENCE', 'Linguistic Competence', 'linguistic competence',
+        'LANGUAGE KNOWLEDGE', 'Language Knowledge', 'language knowledge',
+        'FOREIGN LANGUAGES', 'Foreign Languages', 'foreign languages',
+        'KNOWN LANGUAGES', 'Known Languages', 'known languages',
         'PERSONAL DATA', 'Personal Data', 'personal data',
         'BIOGRAPHICAL DATA', 'Biographical Data', 'biographical data',
+        'BIOGRAPHICAL INFORMATION', 'Biographical Information', 'biographical information',
         'PERSONAL PARTICULARS', 'Personal Particulars', 'personal particulars',
         'BIO DATA', 'Bio Data', 'bio data',
         'BIODATA', 'Biodata', 'biodata',
         'CITIZENSHIP', 'Citizenship', 'citizenship',
+        'CITIZEN', 'Citizen', 'citizen',
+        'PASSPORT', 'Passport', 'passport',
+        'COUNTRY OF ORIGIN', 'Country of Origin', 'country of origin',
+        'PLACE OF BIRTH', 'Place of Birth', 'place of birth',
         'RESIDENCE', 'Residence', 'residence',
-        'CONTACT', 'Contact', 'contact'
+        'CONTACT', 'Contact', 'contact',
+        'GENERAL INFORMATION', 'General Information', 'general information',
+        'BASIC INFORMATION', 'Basic Information', 'basic information',
+        'CANDIDATE INFORMATION', 'Candidate Information', 'candidate information',
+        'APPLICANT INFORMATION', 'Applicant Information', 'applicant information',
+        'ABOUT', 'About', 'about'
     ],
 
     country_experience: [
@@ -822,25 +839,22 @@ function processUnmappedSection(sectionName, content, consolidatedSections) {
  * Extract countries from all content
  */
 function extractCountriesFromAllContent(text) {
-    const countryPattern = /\b(?:afghanistan|albania|algeria|angola|argentina|armenia|australia|austria|azerbaijan|bahrain|bangladesh|belarus|belgium|benin|bolivia|bosnia|botswana|brazil|bulgaria|burkina faso|burundi|cambodia|cameroon|canada|central african|chad|chile|china|colombia|congo|costa rica|croatia|cuba|cyprus|czech|denmark|djibouti|dominican|ecuador|egypt|el salvador|eritrea|estonia|ethiopia|fiji|finland|france|gabon|gambia|georgia|germany|ghana|greece|guatemala|guinea|guyana|haiti|honduras|hungary|iceland|india|indonesia|iran|iraq|ireland|israel|italy|jamaica|japan|jordan|kazakhstan|kenya|kosovo|kuwait|kyrgyzstan|laos|latvia|lebanon|lesotho|liberia|libya|lithuania|luxembourg|macedonia|madagascar|malawi|malaysia|mali|malta|mauritania|mauritius|mexico|moldova|mongolia|montenegro|morocco|mozambique|myanmar|namibia|nepal|netherlands|new zealand|nicaragua|niger|nigeria|norway|oman|pakistan|palestine|panama|papua|paraguay|peru|philippines|poland|portugal|qatar|romania|russia|rwanda|saudi arabia|senegal|serbia|sierra leone|singapore|slovakia|slovenia|somalia|south africa|south korea|south sudan|spain|sri lanka|sudan|sweden|switzerland|syria|taiwan|tajikistan|tanzania|thailand|timor|togo|tunisia|turkey|uganda|ukraine|united arab emirates|united kingdom|uk|united states|usa|uruguay|uzbekistan|venezuela|vietnam|yemen|zambia|zimbabwe)\b/gi;
+    const countries = new Set();
 
-    const matches = text.match(countryPattern);
-    if (matches) {
-        // Clean and deduplicate
-        const cleanedCountries = matches.map(country => {
-            // Normalize common variations
-            if (country.toLowerCase() === 'uk') return 'United Kingdom';
-            if (country.toLowerCase() === 'usa') return 'United States';
-            return country.split(' ').map(word =>
-                word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-            ).join(' ');
-        });
+    const countryKeywords = ['visited', 'worked in', 'experience in', 'based in', 'located in',
+        'assignment in', 'project in', 'mission to', 'deployed to', 'countries:',
+        'country experience:', 'regions:', 'location:', 'posted in'];
 
-        const uniqueCountries = [...new Set(cleanedCountries)];
-        return uniqueCountries.join(', ');
-    }
+    countryKeywords.forEach(keyword => {
+        const regex = new RegExp(`${keyword}\\s*([A-Za-z\\s,;/&()\\-]+)`, 'gi');
+        const matches = text.matchAll(regex);
+        for (const match of matches) {
+            const countryList = match[1].split(/[,;/]/).map(c => c.trim()).filter(c => c.length > 0);
+            countryList.forEach(c => countries.add(c));
+        }
+    });
 
-    return '';
+    return Array.from(countries);
 }
 
 /**
@@ -1190,12 +1204,227 @@ async function processCv(filePath, progressCallback = null, originalFilename = n
             employmentEntries
         );
 
+        if (progressCallback) progressCallback(90, 'Enhancing nationality and language extraction...');
+
+        // Enhanced nationality extraction - use pattern-based extraction as fallback/supplement
+        if (!structuredData.nationality || structuredData.nationality === 'Unknown' || structuredData.nationality === 'Not specified') {
+            const extractedNationality = extractNationalityFromCV(rawTextForAiFallback, consolidatedSections);
+            if (extractedNationality) {
+                structuredData.nationality = extractedNationality;
+                structuredData.personalDetails.nationality = extractedNationality;
+            }
+        }
+
+        // Enhanced language extraction - use pattern-based extraction as fallback/supplement
+        if (!structuredData.languages || structuredData.languages.length === 0 ||
+            (structuredData.languages.length === 1 && structuredData.languages[0].language === 'Information not available')) {
+            const extractedLanguages = extractLanguagesFromCV(rawTextForAiFallback, consolidatedSections);
+            if (extractedLanguages && extractedLanguages.length > 0) {
+                structuredData.languages = extractedLanguages;
+                structuredData.personalDetails.languages = extractedLanguages;
+            }
+        }
+
+        if (progressCallback) progressCallback(100, 'Processing complete!');
+
         return structuredData;
 
     } catch (error) {
         if (progressCallback) progressCallback(100, `Error: ${error.message}`);
         throw error;
     }
+}
+
+/**
+ * Enhanced extraction of nationality from entire CV text
+ */
+function extractNationalityFromCV(fullText, segments) {
+    // First try to find nationality in personal details section
+    if (segments.personal_details) {
+        const nationalityPatterns = [
+            /nationality\s*[:=]?\s*([A-Za-z\s\-]+?)(?:\n|;|,|\||$)/gi,
+            /citizen(?:ship)?\s*[:=]?\s*([A-Za-z\s\-]+?)(?:\n|;|,|\||$)/gi,
+            /passport\s*[:=]?\s*([A-Za-z\s\-]+?)(?:\n|;|,|\||$)/gi,
+            /national\s*[:=]?\s*([A-Za-z\s\-]+?)(?:\n|;|,|\||$)/gi,
+            /country\s+of\s+origin\s*[:=]?\s*([A-Za-z\s\-]+?)(?:\n|;|,|\||$)/gi
+        ];
+
+        for (const pattern of nationalityPatterns) {
+            const matches = segments.personal_details.matchAll(pattern);
+            for (const match of matches) {
+                const nationality = match[1].trim();
+                if (nationality && nationality.length > 2 && nationality.length < 50) {
+                    return nationality;
+                }
+            }
+        }
+    }
+
+    // Try to find nationality in full text
+    const fullTextPatterns = [
+        /(?:^|\n)\s*nationality\s*[:=]?\s*([A-Za-z\s\-]+?)(?:\n|;|,|\||$)/gi,
+        /(?:^|\n)\s*citizen(?:ship)?\s*[:=]?\s*([A-Za-z\s\-]+?)(?:\n|;|,|\||$)/gi,
+        /I\s+am\s+(?:a|an)\s+([A-Za-z]+)\s+(?:citizen|national)/gi,
+        /(?:^|\n)\s*([A-Za-z\s\-]+?)\s+(?:citizen|national|nationality)(?:\n|;|,|\||$)/gi
+    ];
+
+    for (const pattern of fullTextPatterns) {
+        const matches = fullText.matchAll(pattern);
+        for (const match of matches) {
+            const nationality = match[1].trim();
+            if (nationality && nationality.length > 2 && nationality.length < 50) {
+                // Filter out false positives
+                const lowerNat = nationality.toLowerCase();
+                if (!lowerNat.includes('dual') && !lowerNat.includes('multiple') &&
+                    !lowerNat.includes('any') && !lowerNat.includes('various')) {
+                    return nationality;
+                }
+            }
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Enhanced extraction of languages from entire CV text
+ */
+function extractLanguagesFromCV(fullText, segments) {
+    const languages = [];
+    const seenLanguages = new Set();
+
+    // Language patterns with proficiency levels
+    const languagePatterns = [
+        /languages?\s*[:=]?\s*([^\n]+)(?:\n|$)/gi,
+        /language\s+skills?\s*[:=]?\s*([^\n]+)(?:\n|$)/gi,
+        /linguistic\s+skills?\s*[:=]?\s*([^\n]+)(?:\n|$)/gi,
+        /fluent\s+in\s*[:=]?\s*([^\n]+)(?:\n|$)/gi,
+        /proficient\s+in\s*[:=]?\s*([^\n]+)(?:\n|$)/gi,
+        /native\s+language\s*[:=]?\s*([^\n]+)(?:\n|$)/gi,
+        /mother\s+tongue\s*[:=]?\s*([^\n]+)(?:\n|$)/gi,
+        /speaks?\s*[:=]?\s*([^\n]+)(?:\n|$)/gi
+    ];
+
+    // Proficiency keywords
+    const proficiencyKeywords = {
+        'native': ['native', 'mother tongue', 'first language', 'L1'],
+        'fluent': ['fluent', 'excellent', 'advanced', 'C2', 'C1', 'proficient'],
+        'intermediate': ['intermediate', 'good', 'working knowledge', 'B2', 'B1', 'conversational'],
+        'basic': ['basic', 'elementary', 'beginner', 'A2', 'A1', 'limited']
+    };
+
+    // Common language names
+    const commonLanguages = [
+        'English', 'French', 'Spanish', 'German', 'Italian', 'Portuguese', 'Russian',
+        'Chinese', 'Mandarin', 'Cantonese', 'Japanese', 'Korean', 'Arabic', 'Hindi',
+        'Bengali', 'Urdu', 'Turkish', 'Polish', 'Dutch', 'Swedish', 'Norwegian',
+        'Danish', 'Finnish', 'Greek', 'Hebrew', 'Thai', 'Vietnamese', 'Indonesian',
+        'Malay', 'Tagalog', 'Swahili', 'Yoruba', 'Zulu', 'Amharic', 'Hausa'
+    ];
+
+    // Search in all sections
+    const textToSearch = fullText;
+
+    for (const pattern of languagePatterns) {
+        const matches = textToSearch.matchAll(pattern);
+        for (const match of matches) {
+            const languageText = match[1];
+
+            // Try to parse individual languages from the text
+            const languageEntries = languageText.split(/[,;|]/);
+
+            for (const entry of languageEntries) {
+                const cleaned = entry.trim();
+                if (cleaned.length < 3) continue;
+
+                // Extract language name and proficiency
+                let language = null;
+                let proficiency = 'Not specified';
+
+                // Check for common language names
+                for (const lang of commonLanguages) {
+                    if (cleaned.toLowerCase().includes(lang.toLowerCase())) {
+                        language = lang;
+                        break;
+                    }
+                }
+
+                // If no common language found, try to extract first word as language
+                if (!language) {
+                    const words = cleaned.split(/\s+/);
+                    if (words.length > 0) {
+                        language = words[0].replace(/[^A-Za-z]/g, '');
+                    }
+                }
+
+                // Extract proficiency
+                for (const [level, keywords] of Object.entries(proficiencyKeywords)) {
+                    for (const keyword of keywords) {
+                        if (cleaned.toLowerCase().includes(keyword.toLowerCase())) {
+                            proficiency = level.charAt(0).toUpperCase() + level.slice(1);
+                            break;
+                        }
+                    }
+                }
+
+                // Look for parenthetical proficiency
+                const parenMatch = cleaned.match(/\(([^)]+)\)/);
+                if (parenMatch) {
+                    const parenContent = parenMatch[1].toLowerCase();
+                    for (const [level, keywords] of Object.entries(proficiencyKeywords)) {
+                        for (const keyword of keywords) {
+                            if (parenContent.includes(keyword.toLowerCase())) {
+                                proficiency = level.charAt(0).toUpperCase() + level.slice(1);
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (language && !seenLanguages.has(language.toLowerCase())) {
+                    seenLanguages.add(language.toLowerCase());
+                    languages.push({
+                        language: language,
+                        proficiency: proficiency
+                    });
+                }
+            }
+        }
+    }
+
+    // Additional pattern for structured language lists
+    const structuredPattern = /([A-Za-z]+)\s*[-–:]\s*([A-Za-z\s]+)/g;
+    const structuredMatches = textToSearch.matchAll(structuredPattern);
+
+    for (const match of structuredMatches) {
+        const potentialLang = match[1];
+        const potentialProf = match[2];
+
+        // Check if it's a language
+        for (const lang of commonLanguages) {
+            if (potentialLang.toLowerCase() === lang.toLowerCase() && !seenLanguages.has(lang.toLowerCase())) {
+                let proficiency = 'Not specified';
+
+                // Check proficiency
+                for (const [level, keywords] of Object.entries(proficiencyKeywords)) {
+                    for (const keyword of keywords) {
+                        if (potentialProf.toLowerCase().includes(keyword.toLowerCase())) {
+                            proficiency = level.charAt(0).toUpperCase() + level.slice(1);
+                            break;
+                        }
+                    }
+                }
+
+                seenLanguages.add(lang.toLowerCase());
+                languages.push({
+                    language: lang,
+                    proficiency: proficiency
+                });
+            }
+        }
+    }
+
+    return languages.length > 0 ? languages : [{ language: 'Not specified', proficiency: 'Not specified' }];
 }
 
 module.exports = { processCv, splitExperienceWithPatternRecognition }; 
