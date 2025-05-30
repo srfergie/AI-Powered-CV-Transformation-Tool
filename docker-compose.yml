@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  # SQL Server for local development
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: resume-db
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=YourLocalPassword123!
+      - MSSQL_PID=Developer
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+      - ./database:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "YourLocalPassword123!", "-Q", "SELECT 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # Optional: SQL Server Management Studio alternative (Adminer)
+  adminer:
+    image: adminer:4.8.1
+    container_name: resume-db-admin
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - ADMINER_DEFAULT_SERVER=sqlserver
+    depends_on:
+      - sqlserver
+
+volumes:
+  sqlserver_data:
+    driver: local
+
+networks:
+  default:
+    name: resume-app-network 

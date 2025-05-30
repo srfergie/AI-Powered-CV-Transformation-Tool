@@ -1,0 +1,127 @@
+==========================================================
+IOD PARC CV TEMPLATE - WORKING VERSION
+==========================================================
+Copy this content into a Word document and save as TEMPLATE.docx
+
+{headerData.fullName}
+{headerData.title}
+
+Email: {headerData.email} | Phone: {headerData.phone}
+Location: {headerData.location}
+LinkedIn: {headerData.linkedin} | Website: {headerData.website}
+
+==========================================================
+
+{fullName}
+{title}
+
+PROFILE
+{summary}
+
+PERSONAL DETAILS
+Nationality: {nationality}
+Languages: {languages}
+
+{#hasEducation}
+QUALIFICATIONS
+{#education}
+{degree}, {institution}, {graduationDate}
+{thesis}
+
+{/education}
+{/hasEducation}
+
+COUNTRY WORK EXPERIENCE
+{countryExperience}
+
+{#hasExperience}
+EXPERIENCE
+
+{#experience}
+{startDate} - {endDate}
+{position} | Client: {company} | Location: {location}
+
+{description}
+
+{#allBullets}
+• {.}
+{/allBullets}
+
+{/experience}
+{/hasExperience}
+
+{#hasExperience}
+EMPLOYMENT
+
+{#employment}
+{startDate} - {endDate}
+{position}, {company}
+{/employment}
+{/hasExperience}
+
+{#hasPublications}
+PUBLICATIONS
+
+{#publications}
+{authors} ({date}). '{title}'. {publication}.
+{/publications}
+{/hasPublications}
+
+{#hasSkills}
+TECHNICAL SKILLS
+{#technicalSkills}{.}, {/technicalSkills}
+
+PROGRAMMING LANGUAGES
+{#programmingLanguages}{.}, {/programmingLanguages}
+
+FRAMEWORKS & TOOLS
+{#frameworks}{.}, {/frameworks}
+{#tools}{.}, {/tools}
+{/hasSkills}
+
+{#hasProjects}
+PROJECTS
+{#projects}
+{name}: {description}
+Technologies: {technologies}
+{link}
+
+{/projects}
+{/hasProjects}
+
+{#hasCertifications}
+CERTIFICATIONS
+{#certifications}
+{name} - {issuer} ({date})
+{/certifications}
+{/hasCertifications}
+
+==========================================================
+FOOTER (Add this to Word Footer section):
+
+{footerData.companyName} | {footerData.confidentiality}
+Generated: {footerData.generatedDate} | Page {footerData.pageNumber} of {footerData.totalPages}
+
+==========================================================
+
+INSTRUCTIONS TO CREATE TEMPLATE:
+
+1. Open Microsoft Word
+2. Create new document
+3. Copy the content above (between the lines)
+4. Paste into Word document
+5. Format as desired (fonts, styles, spacing)
+6. Add header section with the header content above
+7. Add footer section with the footer content above
+8. Save as "TEMPLATE.docx" in your project root folder
+9. Test with CV upload
+
+IMPORTANT NOTES:
+- Keep all placeholders exactly as shown (with curly braces)
+- Don't add extra spaces inside braces: {fullName} not { fullName }
+- Each {#arrayName} must have matching {/arrayName}
+- Conditional sections like {#hasEducation} hide/show entire sections
+- Simple placeholders like {languages} are for string values
+- Array loops like {#education} are for repeating data
+
+This template matches the data structure provided by your CV transformation tool! 

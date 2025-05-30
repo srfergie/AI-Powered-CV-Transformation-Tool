@@ -1,177 +1,557 @@
-const fs = require('fs').promises;
+const fs = require('fs');
+const path = require('path');
+const { parseWordDocument } = require('../services/wordParserService');
 const { parsePdf } = require('../services/pdfParserService');
 const { processResumeWithOpenRouter } = require('../services/openRouterService');
-const { storeResume, getResumeById, updateResume } = require('../services/databaseService'); // Import database functions
+const { generateResumeDocx } = require('../services/docxGeneratorService');
+const { storeResumeData, getAllResumes, getResumeById, updateResumeData, deleteResume } = require('../services/sqliteDatabaseService');
+
+// Helper function to check if file is a Word document
+function isWordDocument(fileName) {
+  const wordExtensions = ['.doc', '.docx'];
+  return wordExtensions.some(ext => fileName.toLowerCase().endsWith(ext));
+}
 
 /**
- * Handles the resume upload, parsing, processing with OpenRouter, storing, and returns structured data.
- * After successful processing, it deletes the uploaded PDF file.
+ * Parse document based on file type (PDF or Word)
+ * @param {string} filePath - Path to the file
+ * @param {string} fileName - Name of the file
+ * @returns {Promise<string>} - Extracted text content
+ */
+async function parseDocument(filePath, fileName) {
+  if (isWordDocument(fileName)) {
+    console.log('📄 Detected Word document, using Word parser');
+    return await parseWordDocument(filePath);
+  } else if (fileName.toLowerCase().endsWith('.pdf')) {
+    console.log('📋 Detected PDF document, using PDF parser');
+    return await parsePdf(filePath);
+  } else {
+    throw new Error('Unsupported file format. Please upload a PDF or Word document (.pdf, .docx, .doc)');
+  }
+}
+
+/**
+ * Controller for handling CV upload and processing
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
  */
 async function handleResumeUploadAndProcess(req, res) {
-  // 1. Check if a file was uploaded
-  if (!req.file || !req.file.path) {
-    return res.status(400).json({ message: 'No file uploaded or file path is missing.' });
-  }
-
-  const filePath = req.file.path;
-  const originalFileName = req.file.originalname;
+  let tempFilePath = null;
 
   try {
-    // 2. Call parsePdf with the path of the uploaded file
-    console.log(`Parsing PDF: ${filePath}`);
-    const resumeText = await parsePdf(filePath);
-    if (!resumeText.trim()) {
-      console.warn(`PDF parsed successfully but no text content found: ${filePath}`);
-      return res.status(400).json({ message: 'PDF parsed, but no text content was found. Cannot process further.' });
+    console.log('📤 CV upload request received');
+
+    // Check if file was uploaded
+    if (!req.file) {
+      return res.status(400).json({
+        message: 'No file uploaded. Please select a PDF or Word document.',
+        error: 'NO_FILE_UPLOADED'
+      });
     }
-    console.log('PDF parsed successfully.');
 
-    // 3. Call processResumeWithOpenRouter with the extracted text
-    console.log('Processing resume text with OpenRouter...');
-    const structuredResumeData = await processResumeWithOpenRouter(resumeText);
-    console.log('Resume processed by OpenRouter successfully.');
+    tempFilePath = req.file.path;
+    const fileName = req.file.originalname;
+    console.log(`📂 File uploaded: ${fileName}`);
 
-    // 4. Store the processed resume in the database
-    console.log('Storing resume in database...');
-    const extractedDataJsonString = JSON.stringify(structuredResumeData);
-    const newResumeId = await storeResume(originalFileName, extractedDataJsonString, 'processed');
-    console.log(`Resume stored successfully with ID: ${newResumeId}`);
+    // Validate file type
+    const isValidFile = fileName.toLowerCase().endsWith('.pdf') || isWordDocument(fileName);
+    if (!isValidFile) {
+      throw new Error('Invalid file type. Please upload a PDF or Word document (.pdf, .docx, .doc)');
+    }
 
-    // 5. If successful, respond with the ID and structured resume data
-    res.status(201).json({ // 201 Created for new resource
-      id: newResumeId,
-      message: 'Resume processed and stored successfully.',
-      data: structuredResumeData,
+    // Parse document (PDF or Word)
+    console.log('🔍 Starting document parsing...');
+    const extractedText = await parseDocument(tempFilePath, fileName);
+    console.log(`✅ Document parsed successfully! Text length: ${extractedText.length} characters`);
+
+    // Process with OpenRouter AI
+    console.log('🤖 Starting AI processing...');
+    const processedData = await processResumeWithOpenRouter(extractedText);
+    console.log('✅ AI processing completed');
+
+    // Store in database
+    console.log('💾 Storing in database...');
+    const resumeId = await storeResumeData(fileName, processedData, 'processed', extractedText);
+    console.log(`✅ CV stored with ID: ${resumeId}`);
+
+    // Clean up temporary file
+    if (tempFilePath && fs.existsSync(tempFilePath)) {
+      fs.unlinkSync(tempFilePath);
+      console.log('🧹 Temporary file cleaned up');
+    }
+
+    // Return success response
+    res.status(200).json({
+      message: 'CV processed successfully!',
+      id: resumeId,
+      data: processedData,
+      fileName: fileName,
+      fileType: isWordDocument(fileName) ? 'word' : 'pdf'
     });
 
   } catch (error) {
-    console.error('Error in resume processing pipeline:', error);
-    // Robust error handling from previous step, ensure it covers database errors too.
-    // 5. Implement robust error handling
-    let statusCode = 500;
-    let errorMessage = 'An unexpected error occurred during resume processing.';
+    console.error('❌ Error in handleResumeUploadAndProcess:', error);
 
-    if (error.message.includes('File not found')) {
-      statusCode = 404;
-      errorMessage = `Uploaded file not found at path: ${filePath}.`;
-    } else if (error.message.includes('Invalid PDF') || error.message.includes('Failed to parse PDF')) {
-      statusCode = 400;
-      errorMessage = `Failed to parse the uploaded PDF: ${error.message}`;
-    } else if (error.message.includes('OpenRouter API key is missing')) {
-        statusCode = 500; // Server configuration issue
-        errorMessage = 'OpenRouter API key is not configured on the server.';
-    } else if (error.message.includes('OpenRouter API') || error.message.includes('No response received from OpenRouter API')) {
-      statusCode = 502; // Bad Gateway, if OpenRouter itself has issues
-      errorMessage = `Error interacting with OpenRouter API: ${error.message}`;
-    } else if (error.message.includes('Failed to parse JSON response from OpenRouter')) {
-        statusCode = 500;
-        errorMessage = `Error parsing the response from OpenRouter: ${error.message}`;
-    } else if (error.message.includes('Database error')) { // Catch database specific errors
-        statusCode = 500;
-        errorMessage = `A database error occurred: ${error.message}`;
-    }
-    
-    return res.status(statusCode).json({ message: errorMessage, error: error.message });
-
-  } finally {
-    // 6. After processing (success or failure with file path available), delete the temporary uploaded PDF file.
-    try {
-      if (filePath) { // Ensure filePath is defined before trying to unlink
-        console.log(`Attempting to delete temporary file: ${filePath}`);
-        await fs.unlink(filePath);
-        console.log(`Successfully deleted temporary file: ${filePath}`);
+    // Clean up temporary file in case of error
+    if (tempFilePath && fs.existsSync(tempFilePath)) {
+      try {
+        fs.unlinkSync(tempFilePath);
+        console.log('🧹 Temporary file cleaned up after error');
+      } catch (cleanupError) {
+        console.error('❌ Error cleaning up temporary file:', cleanupError);
       }
-    } catch (unlinkError) {
-      console.error(`Failed to delete temporary file ${filePath}:`, unlinkError);
     }
+
+    // Return error response
+    const statusCode = error.message.includes('API key') ? 401 : 500;
+    res.status(statusCode).json({
+      message: 'Failed to process CV',
+      error: error.message
+    });
   }
 }
 
 /**
- * Retrieves a resume by its ID.
+ * Controller for handling bulk resume upload
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+async function handleBulkResumeUpload(req, res) {
+  const tempFiles = [];
+
+  try {
+    console.log('Bulk upload request received');
+
+    // Check if files were uploaded
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({
+        message: 'No files uploaded. Please select PDF files.',
+        error: 'NO_FILES_UPLOADED'
+      });
+    }
+
+    console.log(`Processing ${req.files.length} files`);
+    const results = [];
+    const errors = [];
+
+    // Process each file
+    for (let i = 0; i < req.files.length; i++) {
+      const file = req.files[i];
+      tempFiles.push(file.path);
+
+      try {
+        console.log(`Processing file ${i + 1}/${req.files.length}: ${file.originalname}`);
+
+        // Parse PDF
+        const extractedText = await parseDocument(file.path, file.originalname);
+
+        // Process with AI
+        const processedData = await processResumeWithOpenRouter(extractedText);
+
+        // Store in database
+        const resumeId = await storeResumeData(file.originalname, processedData, 'processed', extractedText);
+
+        results.push({
+          id: resumeId,
+          fileName: file.originalname,
+          status: 'success',
+          data: processedData
+        });
+
+        console.log(`File ${i + 1} processed successfully: ${file.originalname}`);
+
+      } catch (fileError) {
+        console.error(`Error processing file ${file.originalname}:`, fileError);
+        errors.push({
+          fileName: file.originalname,
+          error: fileError.message
+        });
+      }
+    }
+
+    // Clean up temporary files
+    tempFiles.forEach(filePath => {
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    });
+
+    // Return response
+    const response = {
+      message: `Bulk upload completed. ${results.length} files processed successfully, ${errors.length} errors.`,
+      results,
+      errors,
+      summary: {
+        total: req.files.length,
+        successful: results.length,
+        failed: errors.length
+      }
+    };
+
+    res.status(200).json(response);
+
+  } catch (error) {
+    console.error('Error in handleBulkResumeUpload:', error);
+
+    // Clean up temporary files in case of error
+    tempFiles.forEach(filePath => {
+      if (fs.existsSync(filePath)) {
+        try {
+          fs.unlinkSync(filePath);
+        } catch (cleanupError) {
+          console.error('Error cleaning up temporary file:', cleanupError);
+        }
+      }
+    });
+
+    res.status(500).json({
+      message: 'Failed to process bulk upload',
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Controller for getting all resumes with pagination and filtering
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+async function getAllResumesController(req, res) {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const status = req.query.status;
+    const search = req.query.search;
+
+    console.log(`Getting resumes: page=${page}, limit=${limit}, status=${status}, search=${search}`);
+
+    const resumes = await getAllResumes(page, limit, status, search);
+
+    res.status(200).json({
+      message: 'Resumes retrieved successfully',
+      data: resumes.data,
+      pagination: resumes.pagination
+    });
+
+  } catch (error) {
+    console.error('Error in getAllResumesController:', error);
+    res.status(500).json({
+      message: 'Failed to retrieve resumes',
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Controller for getting a specific resume by ID
+ * @param {Object} req - Express request object  
+ * @param {Object} res - Express response object
  */
 async function getResumeController(req, res) {
-  const { id } = req.params;
-  const resumeId = parseInt(id, 10);
-
-  if (isNaN(resumeId)) {
-    return res.status(400).json({ message: 'Invalid resume ID format. ID must be a number.' });
-  }
-
   try {
-    console.log(`Fetching resume with ID: ${resumeId}`);
+    const resumeId = req.params.id;
+    console.log(`Getting resume with ID: ${resumeId}`);
+
     const resume = await getResumeById(resumeId);
 
-    if (resume) {
-      res.status(200).json(resume);
-    } else {
-      res.status(404).json({ message: `Resume with ID ${resumeId} not found.` });
+    if (!resume) {
+      return res.status(404).json({
+        message: 'Resume not found',
+        id: resumeId
+      });
     }
+
+    res.status(200).json(resume);
+
   } catch (error) {
-    console.error(`Error fetching resume ID ${resumeId}:`, error);
-    if (error.message.includes('Database error')) {
-        return res.status(500).json({ message: `A database error occurred while fetching the resume: ${error.message}` });
-    }
-    res.status(500).json({ message: 'An unexpected error occurred while fetching the resume.' });
+    console.error('Error in getResumeController:', error);
+    res.status(500).json({
+      message: 'Failed to retrieve resume',
+      error: error.message
+    });
   }
 }
 
 /**
- * Updates an existing resume.
+ * Controller for updating a specific resume by ID
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object  
  */
 async function updateResumeController(req, res) {
-  const { id } = req.params;
-  const resumeId = parseInt(id, 10);
-
-  if (isNaN(resumeId)) {
-    return res.status(400).json({ message: 'Invalid resume ID format. ID must be a number.' });
-  }
-
-  const { editedData, newStatus } = req.body;
-
-  if (!editedData) {
-    return res.status(400).json({ message: 'Missing "editedData" in request body.' });
-  }
-  if (!newStatus) {
-    // Optional: default status or require it
-    return res.status(400).json({ message: 'Missing "newStatus" in request body.' });
-  }
-  if (typeof newStatus !== 'string' || newStatus.trim() === '') {
-      return res.status(400).json({ message: '"newStatus" must be a non-empty string.' });
-  }
-  if (typeof editedData !== 'object' || editedData === null) {
-    return res.status(400).json({ message: '"editedData" must be a valid JSON object.' });
-  }
-
-
   try {
-    const extractedDataJsonString = JSON.stringify(editedData);
-    console.log(`Updating resume with ID: ${resumeId}`);
-    const updatedResume = await updateResume(resumeId, extractedDataJsonString, newStatus);
+    const resumeId = req.params.id;
+    const { editedData, newStatus } = req.body;
 
-    if (updatedResume) {
-      res.status(200).json({
-        message: `Resume with ID ${resumeId} updated successfully.`,
-        data: updatedResume,
+    console.log(`Updating resume with ID: ${resumeId}`);
+
+    if (!editedData) {
+      return res.status(400).json({
+        message: 'No data provided for update',
+        error: 'MISSING_DATA'
       });
-    } else {
-      // This case might be covered by updateResume throwing an error if ID not found.
-      // If updateResume returns null/undefined for "not found", this is correct.
-      res.status(404).json({ message: `Resume with ID ${resumeId} not found or update failed.` });
     }
+
+    const updatedResume = await updateResumeData(resumeId, editedData, newStatus);
+
+    if (!updatedResume) {
+      return res.status(404).json({
+        message: 'Resume not found',
+        id: resumeId
+      });
+    }
+
+    res.status(200).json({
+      message: 'Resume updated successfully',
+      data: updatedResume
+    });
+
   } catch (error) {
-    console.error(`Error updating resume ID ${resumeId}:`, error);
-    if (error.message.includes('Database error')) {
-        return res.status(500).json({ message: `A database error occurred while updating the resume: ${error.message}` });
-    } else if (error.message.includes(`Resume with ID ${resumeId} not found`)) { // Check if databaseService throws specific not found
-        return res.status(404).json({ message: error.message });
-    }
-    res.status(500).json({ message: 'An unexpected error occurred while updating the resume.' });
+    console.error('Error in updateResumeController:', error);
+    res.status(500).json({
+      message: 'Failed to update resume',
+      error: error.message
+    });
   }
 }
 
-module.exports = { 
+/**
+ * Controller for downloading a CV as .docx file with template-based generation
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+async function downloadResumeDocxController(req, res) {
+  try {
+    const resumeId = req.params.id;
+    console.log(`📥 Download request for CV ID: ${resumeId}`);
+
+    // Get resume data from database
+    const resume = await getResumeById(resumeId);
+    if (!resume) {
+      return res.status(404).json({ message: 'Resume not found' });
+    }
+
+    console.log(`📄 Resume retrieved from database:`);
+    console.log(`• ID: ${resume.id}`);
+    console.log(`• fileName: ${resume.fileName}`);
+    console.log(`• status: ${resume.status}`);
+    console.log(`• extractedData type: ${typeof resume.extractedData}`);
+    console.log(`• extractedData keys: ${resume.extractedData ? Object.keys(resume.extractedData) : 'null/undefined'}`);
+
+    if (resume.extractedData && resume.extractedData.personalInfo) {
+      console.log(`• personalInfo.name: ${resume.extractedData.personalInfo.name}`);
+    } else {
+      console.log(`❌ personalInfo not found in extractedData`);
+    }
+
+    console.log(`📄 Generating DOCX for: ${resume.fileName}`);
+
+    // Generate DOCX using standard generation (no template complexity)
+    const docxBuffer = await generateResumeDocx(resume.extractedData, resume.fileName);
+
+    // Create filename using original filename + _IODPARC.docx
+    const baseFilename = resume.fileName
+      .replace(/\.[^/.]+$/, '') // Remove existing extension (.pdf, .docx, etc.)
+      .replace(/[^a-zA-Z0-9\-_\s]/g, '_') // Replace special chars but keep hyphens, underscores, spaces
+      .replace(/\s+/g, '_') // Replace spaces with underscores
+      .replace(/_+/g, '_') // Replace multiple underscores with single
+      .replace(/^_|_$/g, ''); // Remove leading/trailing underscores
+
+    const filename = `${baseFilename}_IODPARC.docx`;
+
+    console.log(`✅ DOCX generated and sent for CV ID: ${resumeId} as ${filename}`);
+
+    // Send the file
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(docxBuffer);
+
+  } catch (error) {
+    console.error('❌ Error generating DOCX:', error);
+    res.status(500).json({
+      message: 'Failed to generate DOCX',
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Controller for deleting a resume by ID
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+async function deleteResumeController(req, res) {
+  try {
+    const resumeId = req.params.id;
+    console.log(`Deleting resume with ID: ${resumeId}`);
+
+    const deleted = await deleteResume(resumeId);
+
+    if (!deleted) {
+      return res.status(404).json({
+        message: 'Resume not found',
+        id: resumeId
+      });
+    }
+
+    res.status(200).json({
+      message: 'Resume deleted successfully',
+      id: resumeId
+    });
+
+  } catch (error) {
+    console.error('Error in deleteResumeController:', error);
+    res.status(500).json({
+      message: 'Failed to delete resume',
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Controller for handling CV upload with real-time progress tracking via SSE
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+async function handleResumeUploadWithProgress(req, res) {
+  let tempFilePath = null;
+
+  try {
+    console.log('📤 CV upload request with progress tracking received');
+
+    // Check if file was uploaded
+    if (!req.file) {
+      return res.status(400).json({
+        message: 'No file uploaded. Please select a Word document (.docx).',
+        error: 'NO_FILE_UPLOADED'
+      });
+    }
+
+    tempFilePath = req.file.path;
+    const fileName = req.file.originalname;
+    const fileType = 'Word';
+    console.log(`📂 File uploaded: ${fileName} (${fileType})`);
+
+    // Validate file type
+    const isValidFile = fileName.toLowerCase().endsWith('.docx');
+    if (!isValidFile) {
+      return res.status(400).json({
+        message: 'Invalid file type. Please upload a Word document (.docx)',
+        error: 'INVALID_FILE_TYPE'
+      });
+    }
+
+    // Set up Server-Sent Events for progress tracking
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Cache-Control'
+    });
+
+    const sendProgress = (stage, progress, message) => {
+      const data = JSON.stringify({
+        stage,
+        progress,
+        message,
+        timestamp: new Date().toISOString(),
+        fileType
+      });
+      res.write(`data: ${data}\n\n`);
+    };
+
+    // Stage 1: Document Parsing (10-30%)
+    sendProgress('parsing', 10, `🔍 Starting ${fileType} document parsing...`);
+
+    const extractedText = await parseDocument(tempFilePath, fileName);
+    sendProgress('parsing', 30, `✅ ${fileType} parsed successfully! Extracted ${extractedText.length} characters.`);
+
+    console.log(`${fileType} parsed successfully. Text length: ${extractedText.length} characters`);
+
+    // Stage 2: AI Processing (30-80%)
+    sendProgress('ai-processing', 30, '🤖 Sending data to AI for intelligent extraction...');
+
+    const processedData = await processResumeWithOpenRouter(extractedText, (aiProgress) => {
+      // Callback for AI processing progress
+      const overallProgress = 30 + (aiProgress * 0.5); // AI takes 50% of total progress
+      sendProgress('ai-processing', overallProgress, '🧠 AI analyzing CV structure and content...');
+    });
+
+    sendProgress('ai-processing', 80, '✅ AI processing completed successfully!');
+    console.log('AI processing completed');
+
+    // Stage 3: Database Storage (80-90%)
+    sendProgress('storing', 80, '💾 Saving processed data to database...');
+
+    const resumeId = await storeResumeData(fileName, processedData, 'processed', extractedText);
+    sendProgress('storing', 90, `✅ CV stored with ID: ${resumeId}`);
+
+    console.log(`CV stored with ID: ${resumeId}`);
+
+    // Stage 4: Cleanup and Completion (90-100%)
+    sendProgress('finishing', 90, '🧹 Cleaning up temporary files...');
+
+    if (tempFilePath && fs.existsSync(tempFilePath)) {
+      fs.unlinkSync(tempFilePath);
+      console.log('Temporary file cleaned up');
+    }
+
+    sendProgress('complete', 100, '🎉 CV transformation completed successfully!');
+
+    // Send final result
+    const finalResult = JSON.stringify({
+      type: 'result',
+      success: true,
+      data: {
+        id: resumeId,
+        data: processedData,
+        fileName: fileName,
+        fileType: fileType.toLowerCase()
+      }
+    });
+    res.write(`data: ${finalResult}\n\n`);
+    res.end();
+
+  } catch (error) {
+    console.error('❌ Error in handleResumeUploadWithProgress:', error);
+
+    // Send error progress update
+    const errorData = JSON.stringify({
+      stage: 'error',
+      progress: 0,
+      message: `❌ Error: ${error.message}`,
+      timestamp: new Date().toISOString()
+    });
+    res.write(`data: ${errorData}\n\n`);
+
+    // Clean up temporary file in case of error
+    if (tempFilePath && fs.existsSync(tempFilePath)) {
+      try {
+        fs.unlinkSync(tempFilePath);
+        console.log('🧹 Temporary file cleaned up after error');
+      } catch (cleanupError) {
+        console.error('❌ Error cleaning up temporary file:', cleanupError);
+      }
+    }
+
+    // Send final error result
+    const errorResult = JSON.stringify({
+      type: 'result',
+      success: false,
+      error: error.message
+    });
+    res.write(`data: ${errorResult}\n\n`);
+    res.end();
+  }
+}
+
+module.exports = {
   handleResumeUploadAndProcess,
+  handleBulkResumeUpload,
+  getAllResumesController,
   getResumeController,
   updateResumeController,
+  downloadResumeDocxController,
+  deleteResumeController,
+  handleResumeUploadWithProgress
 };

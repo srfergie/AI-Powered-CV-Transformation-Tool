@@ -1,230 +1,222 @@
-const sql = require('mssql');
+const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
 
-/*
-SQL DDL for creating the Resumes table:
+// Database file path
+const DB_PATH = path.join(__dirname, '../../database/resumes.db');
 
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Resumes]') AND type in (N'U'))
-BEGIN
-    CREATE TABLE [dbo].[Resumes](
-        [id] [int] IDENTITY(1,1) NOT NULL,
-        [fileName] [varchar](255) NOT NULL,
-        [extractedData] [nvarchar](max) NULL,
-        [status] [varchar](50) NOT NULL DEFAULT 'processed',
-        [createdAt] [datetime] NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        [updatedAt] [datetime] NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY CLUSTERED 
-    (
-        [id] ASC
-    )WITH (STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
-    ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-END
-GO
+let db = null;
 
--- Optional: Trigger to update 'updatedAt' timestamp on row update
-IF NOT EXISTS (SELECT * FROM sys.triggers WHERE object_id = OBJECT_ID(N'[dbo].[trg_Resumes_UpdateUpdatedAt]'))
-BEGIN
-    EXECUTE ('
-    CREATE TRIGGER [dbo].[trg_Resumes_UpdateUpdatedAt]
-    ON [dbo].[Resumes]
-    AFTER UPDATE
-    AS
-    BEGIN
-        SET NOCOUNT ON;
-        IF ((SELECT TRIGGER_NESTLEVEL()) > 1) RETURN; -- Prevent nested trigger execution
+/**
+ * Initialize SQLite database and create tables
+ */
+async function initDatabase() {
+  return new Promise((resolve, reject) => {
+    // Ensure database directory exists
+    const fs = require('fs');
+    const dbDir = path.dirname(DB_PATH);
+    if (!fs.existsSync(dbDir)) {
+      fs.mkdirSync(dbDir, { recursive: true });
+    }
 
-        UPDATE r
-        SET updatedAt = CURRENT_TIMESTAMP
-        FROM dbo.Resumes r
-        INNER JOIN inserted i ON r.id = i.id;
-    END
-    ')
-END
-GO
+    db = new sqlite3.Database(DB_PATH, (err) => {
+      if (err) {
+        console.error('Error opening database:', err);
+        reject(err);
+        return;
+      }
 
-*/
+      console.log('Connected to SQLite database:', DB_PATH);
 
-// Database Configuration
-const requiredEnvVars = ['DB_USER', 'DB_PASSWORD', 'DB_SERVER', 'DB_DATABASE'];
-for (const envVar of requiredEnvVars) {
-  if (!process.env[envVar]) {
-    throw new Error(`Missing required environment variable for database connection: ${envVar}`);
-  }
-}
+      // Create table if it doesn't exist
+      const createTableSQL = `
+                CREATE TABLE IF NOT EXISTS Resumes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    fileName TEXT NOT NULL,
+                    extractedData TEXT,
+                    status TEXT DEFAULT 'processing',
+                    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            `;
 
-const dbConfig = {
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  server: process.env.DB_SERVER,
-  database: process.env.DB_DATABASE,
-  port: parseInt(process.env.DB_PORT, 10) || 1433,
-  options: {
-    encrypt: process.env.DB_ENCRYPT !== 'false', // defaults to true
-    trustServerCertificate: process.env.DB_TRUST_SERVER_CERTIFICATE === 'true', // defaults to false
-    enableArithAbort: true, // Recommended for Azure SQL
-  },
-};
-
-// Connection Pool Management
-let poolPromise = null;
-
-async function getConnectionPool() {
-  if (!poolPromise) {
-    poolPromise = new sql.ConnectionPool(dbConfig)
-      .connect()
-      .then(pool => {
-        console.log('Connected to MSSQL Database.');
-        pool.on('error', err => {
-          console.error('SQL Pool Error:', err);
-          // Optionally try to re-establish the pool or handle critical error
-          poolPromise = null; // Reset poolPromise so it can be re-established
-        });
-        return pool;
-      })
-      .catch(err => {
-        console.error('Database Connection Failed:', err);
-        poolPromise = null; // Reset on failure to allow retries
-        throw err; // Re-throw to be caught by the caller
+      db.run(createTableSQL, (err) => {
+        if (err) {
+          console.error('Error creating table:', err);
+          reject(err);
+        } else {
+          console.log('Resumes table ready');
+          resolve();
+        }
       });
-  }
-  return poolPromise;
+    });
+  });
 }
 
 /**
- * Stores a new resume record in the database.
- * @param {string} fileName - The name of the uploaded file.
- * @param {string} extractedDataJsonString - The stringified JSON data from OpenRouter.
- * @param {string} status - The initial status of the resume (e.g., 'processed').
- * @returns {Promise<number>} - The ID of the newly inserted resume.
+ * Store resume data in the database
+ * @param {string} fileName - Original filename
+ * @param {Object} extractedData - Processed resume data
+ * @param {string} status - Processing status
+ * @returns {Promise<number>} - Resume ID
  */
-async function storeResume(fileName, extractedDataJsonString, status = 'processed') {
-  try {
-    const pool = await getConnectionPool();
-    const result = await pool.request()
-      .input('fileName', sql.VarChar(255), fileName)
-      .input('extractedData', sql.NVarChar(sql.MAX), extractedDataJsonString)
-      .input('status', sql.VarChar(50), status)
-      .query(`
-        INSERT INTO Resumes (fileName, extractedData, status)
-        VALUES (@fileName, @extractedData, @status);
-        SELECT SCOPE_IDENTITY() AS id;
-      `);
-    if (result.recordset && result.recordset.length > 0) {
-      return result.recordset[0].id;
+async function storeResumeData(fileName, extractedData, status = 'processed') {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error('Database not initialized'));
+      return;
     }
-    throw new Error('Failed to retrieve ID after insert.');
-  } catch (err) {
-    console.error('Error storing resume:', err);
-    throw new Error(`Database error storing resume: ${err.message}`);
-  }
-}
 
-/**
- * Updates an existing resume record in the database.
- * @param {number} id - The ID of the resume to update.
- * @param {string} extractedDataJsonString - The updated stringified JSON data.
- * @param {string} status - The new status of the resume.
- * @returns {Promise<object>} - The updated record or a success indicator.
- */
-async function updateResume(id, extractedDataJsonString, status) {
-  try {
-    const pool = await getConnectionPool();
-    const result = await pool.request()
-      .input('id', sql.Int, id)
-      .input('extractedData', sql.NVarChar(sql.MAX), extractedDataJsonString)
-      .input('status', sql.VarChar(50), status)
-      .query(`
-        UPDATE Resumes
-        SET extractedData = @extractedData, status = @status, updatedAt = CURRENT_TIMESTAMP
-        WHERE id = @id;
-        SELECT * FROM Resumes WHERE id = @id;
-      `); // Also updating updatedAt manually here as trigger might not be set by user
+    const sql = `
+            INSERT INTO Resumes (fileName, extractedData, status, createdAt, updatedAt)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `;
 
-    if (result.recordset && result.recordset.length > 0) {
-      const updatedRecord = result.recordset[0];
-      if (updatedRecord.extractedData) {
-        try {
-          updatedRecord.extractedData = JSON.parse(updatedRecord.extractedData);
-        } catch (parseError) {
-          console.error(`Failed to parse extractedData for resume ID ${id}:`, parseError);
-          // Return raw string if parsing fails, or handle as an error
-          // For now, returning with raw string and logging error.
-        }
+    const extractedDataJson = JSON.stringify(extractedData);
+
+    db.run(sql, [fileName, extractedDataJson, status], function (err) {
+      if (err) {
+        console.error('Error storing resume data:', err);
+        reject(err);
+      } else {
+        console.log(`Resume stored with ID: ${this.lastID}`);
+        resolve(this.lastID);
       }
-      return updatedRecord;
-    }
-    throw new Error(`Resume with ID ${id} not found or update failed.`);
-  } catch (err) {
-    console.error(`Error updating resume with ID ${id}:`, err);
-    throw new Error(`Database error updating resume: ${err.message}`);
-  }
+    });
+  });
 }
 
 /**
- * Retrieves a resume record by its ID.
- * @param {number} id - The ID of the resume to retrieve.
- * @returns {Promise<object|null>} - The resume record with parsed extractedData, or null if not found.
+ * Get all resumes
+ * @returns {Promise<Array>} - Array of resumes
  */
-async function getResumeById(id) {
-  try {
-    const pool = await getConnectionPool();
-    const result = await pool.request()
-      .input('id', sql.Int, id)
-      .query('SELECT * FROM Resumes WHERE id = @id');
+async function getAllResumes() {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error('Database not initialized'));
+      return;
+    }
 
-    if (result.recordset && result.recordset.length > 0) {
-      const record = result.recordset[0];
-      if (record.extractedData) {
-        try {
-          record.extractedData = JSON.parse(record.extractedData);
-        } catch (parseError) {
-          console.error(`Failed to parse extractedData for resume ID ${id} during retrieval:`, parseError);
-          // Depending on requirements, you might throw an error here or return the record with raw string.
-          // For now, returning record with raw string and logging.
-        }
+    const sql = 'SELECT * FROM Resumes ORDER BY createdAt DESC';
+
+    db.all(sql, [], (err, rows) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(rows);
       }
-      return record;
-    }
-    return null; // Not found
-  } catch (err) {
-    console.error(`Error retrieving resume with ID ${id}:`, err);
-    throw new Error(`Database error retrieving resume: ${err.message}`);
-  }
+    });
+  });
 }
 
-// Function to gracefully close the connection pool on application shutdown
-async function closePool() {
-  try {
-    if (poolPromise) {
-      const pool = await poolPromise;
-      await pool.close();
-      poolPromise = null;
-      console.log('Database connection pool closed.');
+/**
+ * Get resume by ID
+ * @param {number} resumeId - Resume ID
+ * @returns {Promise<Object>} - Resume data
+ */
+async function getResumeById(resumeId) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error('Database not initialized'));
+      return;
     }
-  } catch (err) {
-    console.error('Error closing database connection pool:', err);
-  }
+
+    const sql = 'SELECT * FROM Resumes WHERE id = ?';
+
+    db.get(sql, [resumeId], (err, row) => {
+      if (err) {
+        reject(err);
+      } else if (!row) {
+        resolve(null);
+      } else {
+        try {
+          row.extractedData = JSON.parse(row.extractedData);
+        } catch (parseErr) {
+          console.error('Error parsing extractedData:', parseErr);
+        }
+        resolve(row);
+      }
+    });
+  });
 }
 
+/**
+ * Update resume data
+ * @param {number} resumeId - Resume ID
+ * @param {Object} editedData - Updated resume data
+ * @param {string} newStatus - New status
+ * @returns {Promise<Object>} - Updated resume data
+ */
+async function updateResumeData(resumeId, editedData, newStatus = null) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error('Database not initialized'));
+      return;
+    }
+
+    const updates = [];
+    const params = [];
+
+    if (editedData) {
+      updates.push('extractedData = ?');
+      params.push(JSON.stringify(editedData));
+    }
+
+    if (newStatus) {
+      updates.push('status = ?');
+      params.push(newStatus);
+    }
+
+    updates.push('updatedAt = CURRENT_TIMESTAMP');
+    params.push(resumeId);
+
+    const sql = `
+            UPDATE Resumes 
+            SET ${updates.join(', ')}
+            WHERE id = ?
+        `;
+
+    db.run(sql, params, function (err) {
+      if (err) {
+        reject(err);
+      } else {
+        getResumeById(resumeId).then(resolve).catch(reject);
+      }
+    });
+  });
+}
+
+/**
+ * Delete resume by ID
+ * @param {number} resumeId - Resume ID
+ * @returns {Promise<boolean>} - Success status
+ */
+async function deleteResume(resumeId) {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error('Database not initialized'));
+      return;
+    }
+
+    const sql = 'DELETE FROM Resumes WHERE id = ?';
+
+    db.run(sql, [resumeId], function (err) {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(this.changes > 0);
+      }
+    });
+  });
+}
+
+// Initialize database on module load
+initDatabase().catch(console.error);
 
 module.exports = {
-  getConnectionPool, // Exporting for potential direct use or testing
-  storeResume,
-  updateResume,
+  initDatabase,
+  storeResumeData,
+  getAllResumes,
   getResumeById,
-  closePool, // To be called on application shutdown
-  dbConfig // Exporting config for visibility/testing if needed
+  updateResumeData,
+  deleteResume
 };
-
-// Example of how to use closePool on application shutdown (e.g., in src/index.js)
-/*
-process.on('SIGINT', async () => {
-  console.log('Application shutting down...');
-  await require('./services/databaseService').closePool();
-  process.exit(0);
-});
-process.on('SIGTERM', async () => {
-  console.log('Application shutting down...');
-  await require('./services/databaseService').closePool();
-  process.exit(0);
-});
-*/

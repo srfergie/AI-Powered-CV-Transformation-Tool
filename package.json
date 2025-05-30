@@ -1,10 +1,23 @@
 {
-  "name": "app",
+  "name": "bd-assistant-final-solution",
   "version": "1.0.0",
-  "description": "Product Requirements Document (PRD) 1. Overview Product Name: AI-Powered Resume Transformation Tool",
-  "main": "index.js",
+  "description": "Final working code for the IOD PARC CV Transformation Tool.",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "docx": "^8.5.0",
+    "express": "^4.19.2",
+    "mammoth": "^1.7.2",
+    "multer": "^1.4.5-lts.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
   },
   "repository": {
     "type": "git",
@@ -16,12 +29,5 @@
   "bugs": {
     "url": "https://github.com/srfergie/AI-Powered-CV-Transformation-Tool/issues"
   },
-  "homepage": "https://github.com/srfergie/AI-Powered-CV-Transformation-Tool#readme",
-  "dependencies": {
-    "axios": "^1.9.0",
-    "express": "^5.1.0",
-    "mssql": "^11.0.1",
-    "multer": "^2.0.0",
-    "pdf-parse": "^1.1.1"
-  }
+  "homepage": "https://github.com/srfergie/AI-Powered-CV-Transformation-Tool#readme"
 }

@@ -1,0 +1,9 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# update a read me file at all stages
+# keep in mind that this will be added to a static web app when it's fully functional
+
+

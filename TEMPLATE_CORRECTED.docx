@@ -1,0 +1,81 @@
+This file needs to be created as a Word document. Copy the content below into Microsoft Word and save as TEMPLATE.docx:
+
+{headerData.fullName}
+{headerData.title}
+
+Email: {headerData.email} | Phone: {headerData.phone}
+Location: {headerData.location}
+LinkedIn: {headerData.linkedin} | Website: {headerData.website}
+
+═══════════════════════════════════════════════════
+
+{fullName}
+{title}
+
+PROFILE
+{summary}
+
+PERSONAL DETAILS
+Nationality: {nationality}
+Languages: {languages}
+
+{#hasEducation}
+QUALIFICATIONS
+{#education}
+{degree}, {institution}, {graduationDate}
+{thesis}
+
+{/education}
+{/hasEducation}
+
+COUNTRY WORK EXPERIENCE
+{countryExperience}
+
+{#hasExperience}
+EXPERIENCE
+
+{#experience}
+{startDate} - {endDate}
+{position} | Client: {company} | Location: {location}
+
+{description}
+
+{#responsibilities}
+• {.}
+{/responsibilities}
+
+{#achievements}
+• {.}
+{/achievements}
+
+{#subProjects}
+SUB-PROJECTS:
+{#projects}
+• {name}: {description}
+{/projects}
+{/subProjects}
+
+{/experience}
+{/hasExperience}
+
+{#hasExperience}
+EMPLOYMENT
+
+{#employment}
+{startDate} - {endDate}
+{position}, {company}
+{/employment}
+{/hasExperience}
+
+{#hasPublications}
+PUBLICATIONS
+
+{#publications}
+{authors} ({date}). '{title}'. {publication}.
+{/publications}
+{/hasPublications}
+
+═══════════════════════════════════════════════════
+FOOTER CONTENT:
+{footerData.companyName} | {footerData.confidentiality}
+Generated: {footerData.generatedDate} | Page {footerData.pageNumber} of {footerData.totalPages} 
