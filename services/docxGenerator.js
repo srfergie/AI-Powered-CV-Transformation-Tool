@@ -4,7 +4,6 @@ const {
     WidthType, VerticalAlign, AlignmentType, BorderStyle, Header, Footer, PageNumber
 } = docx;
 
-const IOD_PARC_BLUE = "2c5aa0";
 const FONT_FAMILY = "Calibri";
 
 function createHeaderCell(text, rowSpan = 1) {
@@ -15,7 +14,7 @@ function createHeaderCell(text, rowSpan = 1) {
                 font: FONT_FAMILY,
                 size: 22,
                 bold: true,
-                color: IOD_PARC_BLUE,
+                color: "000000",
             })],
         })],
         verticalAlign: VerticalAlign.TOP,
@@ -39,6 +38,53 @@ function createContentCell(paragraphs) {
             left: { style: BorderStyle.NONE },
             right: { style: BorderStyle.NONE }
         },
+    });
+}
+
+function createNameRow(name) {
+    return new TableRow({
+        children: [
+            // Empty cell
+            new TableCell({
+                children: [new Paragraph({ text: "" })],
+                width: { size: 15, type: WidthType.PERCENTAGE },
+                borders: {
+                    top: { style: BorderStyle.NONE },
+                    bottom: { style: BorderStyle.NONE },
+                    left: { style: BorderStyle.NONE },
+                    right: { style: BorderStyle.NONE }
+                }
+            }),
+            // Name spanning 3 columns
+            new TableCell({
+                children: [new Paragraph({
+                    children: [new TextRun({
+                        text: name || "",
+                        font: FONT_FAMILY,
+                        size: 48,
+                        color: "000000",
+                        bold: false
+                    })],
+                    alignment: AlignmentType.LEFT,
+                    spacing: { after: 400 }
+                })],
+                columnSpan: 3,
+                width: { size: 85, type: WidthType.PERCENTAGE },
+                verticalAlign: VerticalAlign.TOP,
+                margins: {
+                    top: 100,
+                    bottom: 100,
+                    left: 150,
+                    right: 150
+                },
+                borders: {
+                    top: { style: BorderStyle.NONE },
+                    bottom: { style: BorderStyle.NONE },
+                    left: { style: BorderStyle.NONE },
+                    right: { style: BorderStyle.NONE }
+                }
+            })
+        ]
     });
 }
 
@@ -83,24 +129,11 @@ async function generateIodParcDocx(data) {
     });
 
     const documentChildren = [];
-
-    // Add CV Applicant Name at the top of the first page
-    const applicantName = data.personalDetails?.name || data.name || "CV Applicant";
-    documentChildren.push(
-        new Paragraph({
-            children: [new TextRun({
-                text: applicantName,
-                font: FONT_FAMILY,
-                size: 48,
-                color: IOD_PARC_BLUE,
-                bold: true
-            })],
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 400 }
-        })
-    );
-
     const allRows = [];
+
+    // Add CV Applicant Name as first table row
+    const applicantName = data.personalDetails?.name || data.name || "CV Applicant";
+    allRows.push(createNameRow(applicantName));
 
     // --- Profile Section ---
     if (data.profile) {
@@ -109,22 +142,70 @@ async function generateIodParcDocx(data) {
             alignment: AlignmentType.JUSTIFIED,
             spacing: { after: 120 }
         }));
-        allRows.push(new TableRow({ children: [createHeaderCell("Profile"), createContentCell(profileParas)] }));
+        allRows.push(new TableRow({
+            children: [
+                createHeaderCell("Profile"),
+                new TableCell({
+                    children: profileParas,
+                    columnSpan: 3,
+                    verticalAlign: VerticalAlign.TOP,
+                    borders: {
+                        top: { style: BorderStyle.NONE },
+                        bottom: { style: BorderStyle.NONE },
+                        left: { style: BorderStyle.NONE },
+                        right: { style: BorderStyle.NONE }
+                    },
+                })
+            ]
+        }));
     }
 
-    // --- Nationality & Languages ---
+    // --- Nationality & Languages (4-column layout) ---
     const languageString = (data.languages || []).map(l => `${l.language} (${l.proficiency})`).join(', ');
-    const nationalityParas = [
-        new Paragraph({
-            children: [new TextRun({ text: data.nationality || 'Not specified', font: FONT_FAMILY, size: 32, color: "000000" })],
-            spacing: { after: 120 }
-        }),
-        new Paragraph({
-            children: [new TextRun({ text: languageString || 'Not specified', font: FONT_FAMILY, size: 32, color: "000000" })],
-            spacing: { after: 120 }
-        })
-    ];
-    allRows.push(new TableRow({ children: [createHeaderCell("Nationality & Languages"), createContentCell(nationalityParas)] }));
+    allRows.push(new TableRow({
+        children: [
+            createHeaderCell("Nationality"),
+            new TableCell({
+                children: [new Paragraph({
+                    children: [new TextRun({ text: data.nationality || 'Not specified', font: FONT_FAMILY, size: 32, color: "000000" })]
+                })],
+                width: { size: 25, type: WidthType.PERCENTAGE },
+                verticalAlign: VerticalAlign.TOP,
+                borders: {
+                    top: { style: BorderStyle.NONE },
+                    bottom: { style: BorderStyle.NONE },
+                    left: { style: BorderStyle.NONE },
+                    right: { style: BorderStyle.NONE }
+                },
+            }),
+            new TableCell({
+                children: [new Paragraph({
+                    children: [new TextRun({ text: "Languages", font: FONT_FAMILY, size: 22, bold: true, color: "000000" })]
+                })],
+                width: { size: 15, type: WidthType.PERCENTAGE },
+                verticalAlign: VerticalAlign.TOP,
+                borders: {
+                    top: { style: BorderStyle.NONE },
+                    bottom: { style: BorderStyle.NONE },
+                    left: { style: BorderStyle.NONE },
+                    right: { style: BorderStyle.NONE }
+                },
+            }),
+            new TableCell({
+                children: [new Paragraph({
+                    children: [new TextRun({ text: languageString || 'Not specified', font: FONT_FAMILY, size: 32, color: "000000" })]
+                })],
+                width: { size: 45, type: WidthType.PERCENTAGE },
+                verticalAlign: VerticalAlign.TOP,
+                borders: {
+                    top: { style: BorderStyle.NONE },
+                    bottom: { style: BorderStyle.NONE },
+                    left: { style: BorderStyle.NONE },
+                    right: { style: BorderStyle.NONE }
+                },
+            })
+        ]
+    }));
 
     // --- Qualifications ---
     const qualContent = (data.qualifications || []).map(q =>
@@ -146,7 +227,17 @@ async function generateIodParcDocx(data) {
     allRows.push(new TableRow({
         children: [
             createHeaderCell("Qualifications"),
-            createContentCell(qualContent)
+            new TableCell({
+                children: qualContent,
+                columnSpan: 3,
+                verticalAlign: VerticalAlign.TOP,
+                borders: {
+                    top: { style: BorderStyle.NONE },
+                    bottom: { style: BorderStyle.NONE },
+                    left: { style: BorderStyle.NONE },
+                    right: { style: BorderStyle.NONE }
+                },
+            })
         ]
     }));
 
@@ -155,7 +246,22 @@ async function generateIodParcDocx(data) {
         children: [new TextRun({ text: (data.countryWorkExperience || []).join(', ') || 'Not specified', font: FONT_FAMILY, size: 32, color: "000000" })],
         spacing: { after: 120 }
     });
-    allRows.push(new TableRow({ children: [createHeaderCell("Country work experience"), createContentCell([countryExpPara])] }));
+    allRows.push(new TableRow({
+        children: [
+            createHeaderCell("Country work experience"),
+            new TableCell({
+                children: [countryExpPara],
+                columnSpan: 3,
+                verticalAlign: VerticalAlign.TOP,
+                borders: {
+                    top: { style: BorderStyle.NONE },
+                    bottom: { style: BorderStyle.NONE },
+                    left: { style: BorderStyle.NONE },
+                    right: { style: BorderStyle.NONE }
+                },
+            })
+        ]
+    }));
 
     // --- Experience Section with rowSpan ---
     const experienceEntries = data.experience || [];
@@ -166,7 +272,17 @@ async function generateIodParcDocx(data) {
         const firstExpRow = new TableRow({
             children: [
                 createHeaderCell("Experience", experienceEntries.length),
-                createContentCell(createExperienceParagraphs(experienceEntries[0])),
+                new TableCell({
+                    children: createExperienceParagraphs(experienceEntries[0]),
+                    columnSpan: 3,
+                    verticalAlign: VerticalAlign.TOP,
+                    borders: {
+                        top: { style: BorderStyle.NONE },
+                        bottom: { style: BorderStyle.NONE },
+                        left: { style: BorderStyle.NONE },
+                        right: { style: BorderStyle.NONE }
+                    },
+                })
             ],
         });
         allRows.push(firstExpRow);
@@ -174,7 +290,17 @@ async function generateIodParcDocx(data) {
         // Subsequent rows for experience ONLY get the content cell.
         for (let i = 1; i < experienceEntries.length; i++) {
             const subsequentExpRow = new TableRow({
-                children: [createContentCell(createExperienceParagraphs(experienceEntries[i]))],
+                children: [new TableCell({
+                    children: createExperienceParagraphs(experienceEntries[i]),
+                    columnSpan: 3,
+                    verticalAlign: VerticalAlign.TOP,
+                    borders: {
+                        top: { style: BorderStyle.NONE },
+                        bottom: { style: BorderStyle.NONE },
+                        left: { style: BorderStyle.NONE },
+                        right: { style: BorderStyle.NONE }
+                    },
+                })],
             });
             allRows.push(subsequentExpRow);
         }
@@ -183,11 +309,21 @@ async function generateIodParcDocx(data) {
         allRows.push(new TableRow({
             children: [
                 createHeaderCell("Experience"),
-                createContentCell([
-                    new Paragraph({
-                        children: [new TextRun({ text: 'No experience entries found', font: FONT_FAMILY, size: 32, color: "000000" })]
-                    })
-                ])
+                new TableCell({
+                    children: [
+                        new Paragraph({
+                            children: [new TextRun({ text: 'No experience entries found', font: FONT_FAMILY, size: 32, color: "000000" })]
+                        })
+                    ],
+                    columnSpan: 3,
+                    verticalAlign: VerticalAlign.TOP,
+                    borders: {
+                        top: { style: BorderStyle.NONE },
+                        bottom: { style: BorderStyle.NONE },
+                        left: { style: BorderStyle.NONE },
+                        right: { style: BorderStyle.NONE }
+                    },
+                })
             ],
         }));
     }
@@ -209,7 +345,17 @@ async function generateIodParcDocx(data) {
     allRows.push(new TableRow({
         children: [
             createHeaderCell("Publications"),
-            createContentCell(pubContent)
+            new TableCell({
+                children: pubContent,
+                columnSpan: 3,
+                verticalAlign: VerticalAlign.TOP,
+                borders: {
+                    top: { style: BorderStyle.NONE },
+                    bottom: { style: BorderStyle.NONE },
+                    left: { style: BorderStyle.NONE },
+                    right: { style: BorderStyle.NONE }
+                },
+            })
         ]
     }));
 
@@ -219,7 +365,7 @@ async function generateIodParcDocx(data) {
     documentChildren.push(
         new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
-            columnWidths: [2500, 7500],
+            columnWidths: [1500, 2500, 1500, 2500], // 4-column layout
             rows: allRows,
             borders: {
                 top: { style: BorderStyle.NONE },
